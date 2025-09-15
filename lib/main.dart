@@ -12,6 +12,7 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 
 // Better background message handler implementation
 @pragma('vm:entry-point')
@@ -38,8 +39,8 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   );
   await flutterLocalNotificationsPlugin.initialize(initSettings);
 
-  // Create notification channel for Android
-  if (Platform.isAndroid) {
+  // Create notification channel for Android (skip on web)
+  if (!kIsWeb && Platform.isAndroid) {
     const AndroidNotificationChannel channel = AndroidNotificationChannel(
       'harvest_channel',
       'Harvest Reminders',
@@ -95,8 +96,10 @@ void main() async {
   // Initialize timezone data
   tz.initializeTimeZones();
 
-  // Set up background message handler before initializing Firebase
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  // Set up background message handler before initializing Firebase (skip on web)
+  if (!kIsWeb) {
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  }
 
   // Print Firebase package versions for debugging
   debugPrint('Starting app initialization...');
@@ -137,32 +140,36 @@ void main() async {
       // Check for reminders due today when app starts
       await NotificationService().checkTodayReminders();
 
-      // Request notification permissions
-      final messaging = FirebaseMessaging.instance;
-      final settings = await messaging.requestPermission(
-        alert: true,
-        announcement: false,
-        badge: true,
-        carPlay: false,
-        criticalAlert: true,
-        provisional: false,
-        sound: true,
-      );
+      // Request notification permissions (skip on web for now)
+      if (!kIsWeb) {
+        final messaging = FirebaseMessaging.instance;
+        final settings = await messaging.requestPermission(
+          alert: true,
+          announcement: false,
+          badge: true,
+          carPlay: false,
+          criticalAlert: true,
+          provisional: false,
+          sound: true,
+        );
 
-      debugPrint('User granted permission: ${settings.authorizationStatus}');
+        debugPrint('User granted permission: ${settings.authorizationStatus}');
 
-      // Configure high priority notifications in Android
-      try {
-        if (Platform.isAndroid) {
-          debugPrint('Configuring high priority notifications for Android');
+        // Configure high priority notifications in Android (skip on web)
+        try {
+          if (Platform.isAndroid) {
+            debugPrint('Configuring high priority notifications for Android');
+          }
+        } catch (e) {
+          debugPrint('Failed to configure notifications: $e');
         }
-      } catch (e) {
-        debugPrint('Failed to configure notifications: $e');
-      }
 
-      // Get FCM token for debugging
-      final token = await messaging.getToken();
-      debugPrint('FCM Token: $token');
+        // Get FCM token for debugging
+        final token = await messaging.getToken();
+        debugPrint('FCM Token: $token');
+      } else {
+        debugPrint('Skipping Firebase messaging setup on web platform');
+      }
     } catch (e) {
       debugPrint('Notification service initialization failed: $e');
       // Continue app initialization even if notification service fails

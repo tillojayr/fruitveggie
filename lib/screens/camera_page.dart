@@ -21,6 +21,23 @@ class _CameraPageState extends State<CameraPage> {
   bool _isRearCameraSelected = true;
   final ImagePicker _picker = ImagePicker();
 
+  // Safely dispose camera to free ImageReader buffers
+  Future<void> _disposeCameraSafely() async {
+    try {
+      final controller = _controller;
+      _controller = null;
+      _initializeControllerFuture = null;
+      if (controller != null) {
+        if (controller.value.isInitialized) {
+          try {
+            await controller.pausePreview();
+          } catch (_) {}
+        }
+        await controller.dispose();
+      }
+    } catch (_) {}
+  }
+
   @override
   void initState() {
     super.initState();
@@ -37,7 +54,7 @@ class _CameraPageState extends State<CameraPage> {
       final firstCamera = _isRearCameraSelected ? cameras.first : cameras.last;
 
       // Dispose of the previous controller if it exists
-      await _controller?.dispose();
+      await _disposeCameraSafely();
 
       // Use medium resolution to reduce buffer overflow issues
       _controller = CameraController(
@@ -215,6 +232,11 @@ class _CameraPageState extends State<CameraPage> {
                                     final image =
                                         await _controller!.takePicture();
 
+                                    // Pause preview immediately after capture to free up buffers
+                                    try {
+                                      await _controller!.pausePreview();
+                                    } catch (_) {}
+
                                     if (!mounted) return;
 
                                     // Show options for automatic or manual analysis
@@ -264,6 +286,12 @@ class _CameraPageState extends State<CameraPage> {
 
   @override
   void dispose() {
+    // Ensure camera is fully disposed to release buffers
+    try {
+      if (_controller != null && _controller!.value.isInitialized) {
+        _controller!.pausePreview();
+      }
+    } catch (_) {}
     _controller?.dispose();
     super.dispose();
   }
@@ -434,24 +462,28 @@ class _CameraPageState extends State<CameraPage> {
               ),
               onPressed: () {
                 Navigator.pop(context); // Close the bottom sheet
-                // Navigate to result page with automatic detection
-                Navigator.push(
-                  context,
-                  SlidePageRoute(
-                    page: ResultPage(
-                      imagePath: imagePath,
-                      useAutoDetection: true,
-                      onDataSaved: () {
-                        // Trigger dashboard refresh when data is saved
-                        if (widget.onBackToDashboard != null) {
-                          widget.onBackToDashboard!();
-                        }
-                      },
+                // Dispose camera before navigating to avoid ImageReader buffer overflow
+                _disposeCameraSafely().whenComplete(() {
+                  // Navigate to result page with automatic detection
+                  Navigator.push(
+                    context,
+                    SlidePageRoute(
+                      page: ResultPage(
+                        imagePath: imagePath,
+                        useAutoDetection: true,
+                        onDataSaved: () {
+                          if (widget.onBackToDashboard != null) {
+                            widget.onBackToDashboard!();
+                          }
+                        },
+                      ),
                     ),
-                  ),
-                ).then((_) {
-                  // Refresh dashboard when returning from ResultPage
-                  // The onDataSaved callback will handle refresh when data is actually saved
+                  ).then((_) {
+                    // Re-initialize camera when returning to this page
+                    if (mounted) {
+                      _initializeCamera();
+                    }
+                  });
                 });
               },
             ),

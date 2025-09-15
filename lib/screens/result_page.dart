@@ -3,7 +3,7 @@ import 'dart:io';
 import 'dart:async'; // Add import for TimeoutException
 import 'dart:math' show pi, sin; // Add import for pi and sin functions
 import 'dart:convert'; // For base64Encode
-import '../services/ai_service.dart'; // AI service import
+import '../services/image_analysis_service.dart'; // Image analysis service import
 import '../utils/app_theme.dart'; // Corrected import
 import '../widgets/analysis_animation.dart'; // Import our custom analysis animation
 import 'package:firebase_auth/firebase_auth.dart';
@@ -43,7 +43,7 @@ class ResultPage extends StatefulWidget {
 }
 
 class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
-  final AIService _aiService = AIService(); // Initialize properly
+  final ImageAnalysisService _imageAnalysisService = ImageAnalysisService(); // Initialize properly
   String _analysisResult = '';
   bool _isAnalyzing = true;
   bool _hasError = false;
@@ -100,16 +100,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
 
     if (!mounted) return;
 
-    // Initialize AI service with try-catch
-    try {
-      _aiService.initialize().catchError((e) {
-        if (!mounted) return;
-        debugPrint('AI service initialization failed in ResultPage: $e');
-      });
-    } catch (e) {
-      if (!mounted) return;
-      debugPrint('AI service initialization error caught in ResultPage: $e');
-    }
+    // ImageAnalysisService doesn't need initialization
 
     // Detect image source
     _detectImageSource();
@@ -220,49 +211,21 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
 
       if (widget.useAutoDetection) {
         // Use automatic detection
-        results = await _aiService
-            .analyzeProduceAutomatically(
-          imageFile: imageFile,
-          progressCallback: (progressData) {
-            // Update UI with progress information
-            setState(() {
-              _analysisStatus = progressData['status'] ?? 'Processing...';
-
-              // Show partial results if available
-              if (progressData.containsKey('partial_result')) {
-                _parsedResults['Preliminary Result'] =
-                    progressData['partial_result'];
-
-                // If we detected the type, update the UI immediately
-                if (progressData['partial_result']
-                    .toString()
-                    .contains('Detected')) {
-                  final detectedType = progressData['partial_result']
-                      .toString()
-                      .replaceAll('Detected ', '');
-                  _detectedType = detectedType;
-                  _parsedResults['Type'] = detectedType;
-                }
-              }
-
-              // Show error if any
-              if (progressData.containsKey('error')) {
-                _parsedResults['Warning'] = progressData['error'];
-              }
-
-              // Show detailed diagnostic if available
-              if (progressData.containsKey('diagnostic')) {
-                _parsedResults['Diagnostic'] = progressData['diagnostic'];
-              }
-            });
-          },
-        )
+        // Use the new ImageAnalysisService
+        results = await _imageAnalysisService.analyze(imageFile)
             .timeout(const Duration(seconds: 60), onTimeout: () {
           throw TimeoutException('Analysis timed out after 60 seconds');
         });
+        
+        // Convert the new service response to the expected format
+        results = _convertImageAnalysisResponse(results);
 
         // Store results for later use
         _analysisResults = results;
+
+        // Directly apply AI output to UI and stop further text-based parsing
+        _setUiFromImageAnalysis(results);
+        return;
 
         // Check for non-produce or low quality image responses
         if (results.containsKey('not_produce') &&
@@ -480,52 +443,28 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
         _parsedResults['Analysis Confidence'] =
             '$confidencePercentage% - $confidenceLevel';
       } else {
-        // Use manual input
-        results = await _aiService
-            .analyzeHarvestReadiness(
-          imageFile: imageFile,
-          category: widget.category!,
-          type: widget.type!,
-          size: widget.size!,
-          texture: widget.texture!,
-          color: widget.color!,
-          physicalCues: widget.physicalCues!,
-          progressCallback: (progressData) {
-            // Update UI with progress information
-            setState(() {
-              _analysisStatus = progressData['status'] ?? 'Processing...';
-
-              // Show partial results if available
-              if (progressData.containsKey('partial_result')) {
-                _parsedResults['Preliminary Result'] =
-                    progressData['partial_result'];
-              }
-
-              // Show error if any
-              if (progressData.containsKey('error')) {
-                _parsedResults['Warning'] = progressData['error'];
-              }
-            });
-          },
-        )
+        // Use manual input - also use the new ImageAnalysisService
+        results = await _imageAnalysisService.analyze(imageFile)
             .timeout(const Duration(seconds: 60), onTimeout: () {
           throw TimeoutException('Analysis timed out after 60 seconds');
         });
+        
+        // Convert the new service response to the expected format
+        results = _convertImageAnalysisResponse(results);
 
         // Use the manually entered type and category
         _detectedType = widget.type!;
 
         // Store results for later use
         _analysisResults = results;
+
+        // Directly apply AI output to UI and stop further text-based parsing
+        _setUiFromImageAnalysis(results);
+        return;
       }
 
-      // Check if Gemini analysis has an error
-      if (results['gemini_analysis'] != null &&
-          results['gemini_analysis'].toString().startsWith('Error:')) {
-        debugPrint(
-            'Gemini analysis returned error: ${results['gemini_analysis']}');
-        _handleAnalysisError(results['gemini_analysis']);
-      } else {
+      // Proceed with already applied AI results
+      if (false) {
         // Process the combined results
         setState(() {
           // Store results for internal use
@@ -591,57 +530,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
           debugPrint(
               'Formatted analysis preview: ${_analysisResult.length > 50 ? '${_analysisResult.substring(0, 50)}...' : _analysisResult}');
 
-          // Analyze the detailed text itself to improve harvest readiness prediction
-          if (_analysisResult.length > 20) {
-            final String lowerAnalysis = _analysisResult.toLowerCase();
-
-            // First check for clear harvest readiness indicators
-            bool isReady = false;
-            bool isOverripe = false;
-            bool isNotReady = false;
-
-            // Check for ready indicators
-            if (lowerAnalysis.contains('ready for harvest') ||
-                lowerAnalysis.contains('ready to be harvested') ||
-                lowerAnalysis.contains('optimal time') ||
-                lowerAnalysis.contains('perfect time') ||
-                lowerAnalysis.contains('can be harvested now') ||
-                lowerAnalysis.contains('fully ripe') ||
-                lowerAnalysis.contains('100% ripe')) {
-              isReady = true;
-            }
-
-            // Check for overripe indicators
-            if (lowerAnalysis.contains('overripe') ||
-                lowerAnalysis.contains('past its prime') ||
-                lowerAnalysis.contains('too ripe') ||
-                lowerAnalysis.contains('beyond optimal')) {
-              isOverripe = true;
-            }
-
-            // Check for not ready indicators
-            if (lowerAnalysis.contains('not ready') ||
-                lowerAnalysis.contains('unripe') ||
-                lowerAnalysis.contains('needs more time') ||
-                lowerAnalysis.contains('too early') ||
-                lowerAnalysis.contains('immature') ||
-                (lowerAnalysis.contains('green') &&
-                    !lowerAnalysis.contains('ready'))) {
-              isNotReady = true;
-            }
-
-            // Set the final status based on priority: overripe > ready > not ready
-            if (isOverripe) {
-              _parsedResults['Ready for Harvest'] = 'overripe';
-              debugPrint('Setting to OVERRIPE based on analysis text');
-            } else if (isReady) {
-              _parsedResults['Ready for Harvest'] = 'ready_for_harvest';
-              debugPrint('Setting to READY based on analysis text');
-            } else if (isNotReady) {
-              _parsedResults['Ready for Harvest'] = 'unripe';
-              debugPrint('Setting to UNRIPE based on analysis text');
-            }
-          }
+          // Do not infer harvest status by scanning words; rely on AI output only
 
           // Display additional analysis information if available
           if (results.containsKey('result_details') &&
@@ -926,69 +815,10 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
         }
       }
 
-      // Use the final_prediction boolean flag as fallback with additional verification
-      if ((!_parsedResults.containsKey('Ready for Harvest') ||
-              _parsedResults['Ready for Harvest'] == null ||
-              _parsedResults['Ready for Harvest']!.isEmpty) &&
-          results.containsKey('final_prediction') &&
-          results['final_prediction'] != null) {
-        final bool isReady = results['final_prediction'] as bool;
-
-        // Additional verification based on color and type
-        bool shouldOverride = false;
-        String overrideValue = '';
-
-        if (isReady && _parsedResults.containsKey('Color')) {
-          final String color = _parsedResults['Color']!.toLowerCase();
-          final String type = _detectedType.toLowerCase();
-
-          // Check for unripe color indicators
-          if (color.contains('green') &&
-              !color.contains('dark green') &&
-              ['papaya', 'banana', 'mango', 'tomato', 'pineapple']
-                  .any((t) => type.contains(t))) {
-            shouldOverride = true;
-            overrideValue = 'unripe';
-            debugPrint('Overriding to unripe based on green color for $type');
-          }
-        }
-
-        _parsedResults['Ready for Harvest'] = shouldOverride
-            ? overrideValue
-            : (isReady ? 'ready_for_harvest' : 'unripe');
-        debugPrint(
-            'Using final_prediction boolean with verification: ${_parsedResults['Ready for Harvest']}');
-      }
+      // Remove fallbacks that infer from words; use AI output only
 
       // Use gemini_prediction as last resort with additional checks
-      else if ((!_parsedResults.containsKey('Ready for Harvest') ||
-              _parsedResults['Ready for Harvest'] == null ||
-              _parsedResults['Ready for Harvest']!.isEmpty) &&
-          results.containsKey('gemini_prediction') &&
-          results['gemini_prediction'] != null) {
-        final bool isReady = results['gemini_prediction'] as bool;
-
-        // Check detailed analysis for confirmation
-        bool isConfirmed = false;
-        if (results.containsKey('detailed_analysis')) {
-          final String analysis =
-              results['detailed_analysis'].toString().toLowerCase();
-          if (isReady) {
-            isConfirmed = analysis.contains('ready for harvest') ||
-                analysis.contains('optimal time') ||
-                analysis.contains('good to harvest');
-          } else {
-            isConfirmed = analysis.contains('not ready') ||
-                analysis.contains('unripe') ||
-                analysis.contains('needs more time');
-          }
-        }
-
-        _parsedResults['Ready for Harvest'] =
-            isReady && isConfirmed ? 'ready_for_harvest' : 'unripe';
-        debugPrint(
-            'Using gemini_prediction with confirmation: ${_parsedResults['Ready for Harvest']}');
-      }
+      else if (false) {}
 
       // Ensure the Ready for Harvest key always exists with a conservative default
       if (!_parsedResults.containsKey('Ready for Harvest') ||
@@ -1055,6 +885,175 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
     }
   }
 
+  // Convert ImageAnalysisService response to the expected format
+  Map<String, dynamic> _convertImageAnalysisResponse(Map<String, dynamic> response) {
+    final int ripeness = response['ripeness'] ?? 50;
+    final bool okayToHarvest = response['okay_to_harvest'] ?? false;
+    final int daysToHarvest = response['days_to_harvest'] ?? 7;
+    final String description = response['image_description'] ?? 'No description available';
+    final String aiType = (response['type'] ?? '').toString();
+    final String aiCategory = (response['category'] ?? '').toString();
+    final String confidence = (response['confidence'] ?? 'Medium').toString();
+    final int confidencePercent = _confidenceLevelToPercent(confidence);
+    final bool notProduce = response['not_produce'] == true;
+
+    // Determine harvest status based on ripeness and okay_to_harvest
+    String harvestStatus;
+    if (okayToHarvest) {
+      harvestStatus = 'ready_for_harvest';
+    } else if (ripeness < 30) {
+      harvestStatus = 'unripe';
+    } else if (ripeness > 80) {
+      harvestStatus = 'overripe';
+    } else {
+      harvestStatus = 'unripe';
+    }
+
+    return {
+      'success': true,
+      'timestamp': DateTime.now().toIso8601String(),
+      'ripeness': ripeness,
+      'detected_type': aiType.isNotEmpty ? aiType : _extractProduceTypeFromDescription(description),
+      'detected_category': aiCategory.isNotEmpty ? aiCategory : _determineCategoryFromDescription(description),
+      'ripeness_status': harvestStatus,
+      'ready_for_harvest': okayToHarvest,
+      'days_until_harvest': daysToHarvest,
+      'confidence_level': confidence,
+      'confidence_percent': confidencePercent,
+      'not_produce': notProduce,
+      'detailed_analysis': description,
+      'final_prediction': okayToHarvest,
+      'gemini_analysis': description,
+      'tensorflow_result': harvestStatus,
+      'reconciled_result': harvestStatus,
+    };
+  }
+
+  // Extract produce type from description
+  String _extractProduceTypeFromDescription(String description) {
+    final lowerDesc = description.toLowerCase();
+    
+    // Common fruits
+    if (lowerDesc.contains('apple')) return 'Apple';
+    if (lowerDesc.contains('banana')) return 'Banana';
+    if (lowerDesc.contains('orange')) return 'Orange';
+    if (lowerDesc.contains('tomato')) return 'Tomato';
+    if (lowerDesc.contains('strawberry')) return 'Strawberry';
+    if (lowerDesc.contains('grape')) return 'Grape';
+    if (lowerDesc.contains('lemon')) return 'Lemon';
+    if (lowerDesc.contains('lime')) return 'Lime';
+    if (lowerDesc.contains('mango')) return 'Mango';
+    if (lowerDesc.contains('peach')) return 'Peach';
+    if (lowerDesc.contains('pear')) return 'Pear';
+    if (lowerDesc.contains('cherry')) return 'Cherry';
+    if (lowerDesc.contains('pineapple')) return 'Pineapple';
+    if (lowerDesc.contains('watermelon')) return 'Watermelon';
+    if (lowerDesc.contains('avocado')) return 'Avocado';
+    
+    // Common vegetables
+    if (lowerDesc.contains('carrot')) return 'Carrot';
+    if (lowerDesc.contains('potato')) return 'Potato';
+    if (lowerDesc.contains('onion')) return 'Onion';
+    if (lowerDesc.contains('pepper')) return 'Bell Pepper';
+    if (lowerDesc.contains('cucumber')) return 'Cucumber';
+    if (lowerDesc.contains('lettuce')) return 'Lettuce';
+    if (lowerDesc.contains('spinach')) return 'Spinach';
+    if (lowerDesc.contains('broccoli')) return 'Broccoli';
+    if (lowerDesc.contains('cabbage')) return 'Cabbage';
+    if (lowerDesc.contains('corn')) return 'Corn';
+    if (lowerDesc.contains('bean')) return 'Bean';
+    if (lowerDesc.contains('pea')) return 'Pea';
+    
+    return 'Unknown Produce';
+  }
+
+  // Determine category from description
+  String _determineCategoryFromDescription(String description) {
+    final lowerDesc = description.toLowerCase();
+    
+    // Check for fruit indicators
+    if (lowerDesc.contains('fruit') || 
+        lowerDesc.contains('apple') || 
+        lowerDesc.contains('banana') || 
+        lowerDesc.contains('orange') ||
+        lowerDesc.contains('berry') ||
+        lowerDesc.contains('grape') ||
+        lowerDesc.contains('citrus')) {
+      return 'Fruit';
+    }
+    
+    // Check for vegetable indicators
+    if (lowerDesc.contains('vegetable') || 
+        lowerDesc.contains('carrot') || 
+        lowerDesc.contains('potato') || 
+        lowerDesc.contains('onion') ||
+        lowerDesc.contains('pepper') ||
+        lowerDesc.contains('cucumber') ||
+        lowerDesc.contains('lettuce') ||
+        lowerDesc.contains('leafy')) {
+      return 'Vegetable';
+    }
+    
+    return 'Unknown';
+  }
+
+  // Apply ImageAnalysisService results directly to UI and finish
+  void _setUiFromImageAnalysis(Map<String, dynamic> results) {
+    if (!mounted) return;
+    setState(() {
+      _analysisResults = results;
+      _parsedResults.clear();
+
+      // Handle non-produce detection
+      if (results['not_produce'] == true) {
+        _analysisResult = results['detailed_analysis'] ?? 'No fruits or vegetables detected in the image.';
+        _parsedResults['Type'] = 'Not Produce';
+        _parsedResults['Category'] = 'N/A';
+        _parsedResults['Ready for Harvest'] = 'unknown';
+        _isAnalyzing = false;
+        _hasError = true;
+        _errorMessage = 'This image does not contain a fruit or vegetable.';
+        _analysisStatus = 'Complete';
+        return;
+      }
+
+      // Map fields directly from AI output
+      _detectedType = (results['detected_type'] ?? 'Unknown').toString();
+      _parsedResults['Type'] = _detectedType;
+      _parsedResults['Category'] = (results['detected_category'] ?? 'Unknown').toString();
+
+      // Harvest readiness and ripeness
+      final String harvestState = (results['reconciled_result'] ?? (results['ready_for_harvest'] == true ? 'ready_for_harvest' : 'unripe')).toString();
+      _parsedResults['Ready for Harvest'] = harvestState;
+
+      if (results.containsKey('ripeness')) {
+        _parsedResults['Ripeness'] = '${results['ripeness']}%';
+      }
+
+      if (results.containsKey('days_until_harvest')) {
+        _parsedResults['Estimated Days Until Harvest'] = results['days_until_harvest'].toString();
+      }
+
+      // Detailed analysis/description
+      _analysisResult = (results['detailed_analysis'] ?? '').toString();
+
+      if (results.containsKey('confidence_percent')) {
+        _parsedResults['Analysis Confidence'] =
+            '${results['confidence_percent']}%';
+      } else if (results.containsKey('confidence_level')) {
+        _parsedResults['Analysis Confidence'] =
+            '${_confidenceLevelToPercent(results['confidence_level'].toString())}%';
+      }
+
+      _isAnalyzing = false;
+      _hasError = false;
+      _analysisStatus = 'Complete';
+    });
+
+    // Trigger result animations
+    _resultsAnimationController.forward();
+  }
+
   void _handleAnalysisError(String errorMessage) {
     setState(() {
       _analysisResult = _formatAIAnalysisResult(errorMessage);
@@ -1119,86 +1118,20 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
             },
           ),
         ),
-        // Add Floating Action Button for manual saving or show message for ready crops
+        // Single action: allow saving the analyzed result
         floatingActionButton: (!_isAnalyzing && !_hasError)
-            ? (_parsedResults.containsKey('Unripe Status'))
-                ? (() {
-                    // Get the current unripe status
-                    final String unripeStatus =
-                        _parsedResults['Unripe Status']!.toLowerCase();
-                    final bool isUnripe = unripeStatus.contains('yes');
-                    final bool isRipe = unripeStatus.contains('ripe') &&
-                        !unripeStatus.contains('unripe');
-                    final bool isOverripe = unripeStatus.contains('overripe');
-
-                    // Show appropriate button based on status
-                    if (isUnripe) {
-                      return FloatingActionButton.extended(
+            ? FloatingActionButton.extended(
                         onPressed: _resultsSaved
                             ? null
                             : () => _saveResultsToFirestore(_analysisResults),
-                        backgroundColor: _resultsSaved
-                            ? Colors.grey
-                            : const Color(0xFF2E7D32),
+                backgroundColor:
+                    _resultsSaved ? Colors.grey : const Color(0xFF2E7D32),
                         icon: Icon(_resultsSaved ? Icons.check : Icons.save),
-                        label: Text(_resultsSaved ? 'Saved' : 'Monitor Crop'),
-                        tooltip: _resultsSaved
-                            ? 'Crop already saved'
-                            : 'Save unripe crop data for monitoring',
-                      );
-                    } else if (isRipe) {
-                      return FloatingActionButton.extended(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                  'This crop is ripe and ready for harvest'),
-                              behavior: SnackBarBehavior.floating,
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        },
-                        backgroundColor: Colors.green,
-                        icon: const Icon(Icons.agriculture),
-                        label: const Text('Harvest Now'),
-                        tooltip: 'This crop is ripe and ready to harvest',
-                      );
-                    } else if (isOverripe) {
-                      return FloatingActionButton.extended(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                  'This crop is past its optimal harvest time'),
-                              behavior: SnackBarBehavior.floating,
-                              backgroundColor: Colors.red,
-                            ),
-                          );
-                        },
-                        backgroundColor: Colors.redAccent,
-                        icon: const Icon(Icons.warning),
-                        label: const Text('Past Optimal'),
-                        tooltip: 'This crop is past its optimal harvest time',
-                      );
-                    } else {
-                      // Default case for unknown status
-                      return FloatingActionButton.extended(
-                        onPressed: _resultsSaved
-                            ? null
-                            : () => _saveResultsToFirestore(_analysisResults),
-                        backgroundColor: _resultsSaved
-                            ? Colors.grey
-                            : const Color(0xFF2E7D32),
-                        icon: Icon(
-                            _resultsSaved ? Icons.check : Icons.help_outline),
                         label: Text(_resultsSaved ? 'Saved' : 'Check Status'),
                         tooltip: _resultsSaved
-                            ? 'Crop already saved'
-                            : 'Unripe status unclear, check details',
-                      );
-                    }
-                  })()
-                : null
+                    ? 'Analysis already saved'
+                    : 'Save this analysis to your scans',
+              )
             : null,
         body: Container(
           decoration: const BoxDecoration(
@@ -1570,9 +1503,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                               children: [
                                 // Ready for Harvest status card
                                 if (_parsedResults
-                                        .containsKey('Ready for Harvest') &&
-                                    _parsedResults['Ready for Harvest'] !=
-                                        'ready_for_harvest')
+                                    .containsKey('Ready for Harvest'))
                                   Builder(builder: (context) {
                                     debugPrint(
                                         'Displaying harvest readiness card with status: ${_parsedResults['Ready for Harvest']}');
@@ -1600,7 +1531,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                             color: _getHarvestStatusGradient(
                                                     _parsedResults[
                                                         'Ready for Harvest']!)
-                                                .colors[0]
+                                                .colors[1]
                                                 .withOpacity(0.3),
                                             spreadRadius: 0,
                                             blurRadius: 20,
@@ -1665,17 +1596,55 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                                         ),
                                                       ),
                                                       const SizedBox(height: 4),
-                                                      Text(
-                                                        _getReadableHarvestState(
-                                                            _parsedResults[
-                                                                'Ready for Harvest']!),
-                                                        style: const TextStyle(
-                                                          color: Colors.white,
-                                                          fontSize: 24,
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          letterSpacing: -0.5,
-                                                        ),
+                                                      Row(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .center,
+                                                        children: [
+                                                          Container(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .all(6),
+                                                            decoration:
+                                                                BoxDecoration(
+                                                              color: Colors
+                                                                  .white
+                                                                  .withOpacity(
+                                                                      0.25),
+                                                              shape: BoxShape
+                                                                  .circle,
+                                                              border: Border.all(
+                                                                  color: Colors
+                                                                      .white
+                                                                      .withOpacity(
+                                                                          0.6),
+                                                                  width: 1),
+                                                            ),
+                                                          ),
+                                                          const SizedBox(
+                                                              width: 10),
+                                                          Expanded(
+                                                            child: Text(
+                                                              _getReadableHarvestState(
+                                                                  _parsedResults[
+                                                                      'Ready for Harvest']!),
+                                                              style:
+                                                                  const TextStyle(
+                                                                color:
+                                                                    Colors.white,
+                                                                fontSize: 26,
+                                                                fontWeight:
+                                                                    FontWeight
+                                                                        .w800,
+                                                                letterSpacing:
+                                                                    -0.6,
+                                                              ),
+                                                              maxLines: 2,
+                                                              overflow:
+                                                                  TextOverflow.ellipsis,
+                                                            ),
+                                                          ),
+                                                        ],
                                                       ),
                                                     ],
                                                   ),
@@ -1683,6 +1652,59 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                               ],
                                             ),
                                             const SizedBox(height: 20),
+
+                                            // Success confetti-like accents when ready for harvest
+                                            if (_parsedResults['Ready for Harvest']
+                                                    ?.toLowerCase() ==
+                                                'ready_for_harvest')
+                                              Container(
+                                                margin: const EdgeInsets.only(
+                                                    bottom: 12),
+                                                child: Row(
+                                                  mainAxisAlignment:
+                                                      MainAxisAlignment.start,
+                                                  children: [
+                                                    Container(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                              8),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.white
+                                                            .withOpacity(0.2),
+                                                        borderRadius:
+                                                            BorderRadius
+                                                                .circular(12),
+                                                        border: Border.all(
+                                                            color: Colors.white
+                                                                .withOpacity(
+                                                                    0.4)),
+                                                      ),
+                                                      child: const Icon(
+                                                        Icons.check_circle,
+                                                        color: Colors.white,
+                                                        size: 18,
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 10),
+                                                    Expanded(
+                                                      child: Text(
+                                                        'Great news! This crop looks ready to harvest.',
+                                                        style: TextStyle(
+                                                          color: Colors.white
+                                                              .withOpacity(0.95),
+                                                          fontSize: 14,
+                                                          fontWeight:
+                                                              FontWeight.w600,
+                                                        ),
+                                                        softWrap: true,
+                                                        maxLines: 2,
+                                                        overflow:
+                                                            TextOverflow.ellipsis,
+                                                      ),
+                                                    )
+                                                  ],
+                                                ),
+                                              ),
                                             // Add days until harvest if available and produce is unripe
                                             if (_parsedResults[
                                                         'Ready for Harvest']!
@@ -1717,15 +1739,16 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                                           const EdgeInsets.all(
                                                               8),
                                                       decoration: BoxDecoration(
-                                                        color: Colors.white
-                                                            .withOpacity(0.2),
+                                                        color: Colors.amber
+                                                            .withOpacity(0.3),
                                                         borderRadius:
                                                             BorderRadius
                                                                 .circular(10),
                                                       ),
-                                                      child: const Icon(
+                                                      child: Icon(
                                                         Icons.schedule_outlined,
-                                                        color: Colors.white,
+                                                        color: Colors.amber
+                                                            .shade50,
                                                         size: 20,
                                                       ),
                                                     ),
@@ -2652,7 +2675,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
         lowerCaseState == 'not ready' ||
         lowerCaseState == 'not_ready' ||
         lowerCaseState.contains('not ready')) {
-      return Icons.hourglass_empty;
+      return Icons.hourglass_bottom;
     }
     // Cases for ready
     else if (lowerCaseState == 'ready_for_harvest' ||
@@ -2661,7 +2684,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
         lowerCaseState.contains('yes') ||
         (lowerCaseState.contains('harvest') &&
             !lowerCaseState.contains('not'))) {
-      return Icons.check_circle;
+      return Icons.check_circle_rounded;
     }
     // Cases for overripe
     else if (lowerCaseState == 'overripe' ||
@@ -2679,31 +2702,31 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
   LinearGradient _getHarvestStatusGradient(String harvestState) {
     final lowerCaseState = harvestState.toLowerCase();
 
-    // Subtle green gradient for unripe/not ready
+    // Warning orange gradient for not ready (stronger)
     if (lowerCaseState == 'unripe' ||
         lowerCaseState == 'not ready' ||
         lowerCaseState == 'not_ready' ||
         lowerCaseState.contains('not ready')) {
       return LinearGradient(
         colors: [
-          const Color(0xFFE8F5E8), // Very light green
-          const Color(0xFFC8E6C9), // Light green
-          const Color(0xFFA5D6A7), // Soft green
+          const Color(0xFFFF9800), // Deep orange
+          const Color(0xFFFFB74D), // Medium orange
+          const Color(0xFFFFB74D), // Light orange
         ],
         stops: const [0.0, 0.5, 1.0],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       );
     }
-    // Subtle yellow gradient for ready
+    // Success green gradient for ready (make greener and more saturated)
     else if (lowerCaseState == 'ready' ||
         lowerCaseState == 'ready_for_harvest' ||
         (lowerCaseState.contains('ready') && !lowerCaseState.contains('not'))) {
       return LinearGradient(
         colors: [
-          const Color(0xFFFFF3E0), // Very light orange
-          const Color(0xFFFFE0B2), // Light orange
-          const Color(0xFFFFCC80), // Soft orange
+          const Color(0xFF2E7D32), // Dark green
+          const Color(0xFF388E3C), // Strong green
+          const Color(0xFF66BB6A), // Medium green
         ],
         stops: const [0.0, 0.5, 1.0],
         begin: Alignment.topLeft,
@@ -4822,32 +4845,21 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
 
   // Get confidence value as a fraction for progress indicators
   double _getConfidenceValue(String confidenceText) {
-    if (confidenceText.toLowerCase().contains('high') ||
-        (confidenceText.contains('%') &&
-            double.tryParse(confidenceText.split('%')[0]) != null &&
-            double.parse(confidenceText.split('%')[0]) > 75)) {
-      // For percentage values, use actual percentage / 100
-      if (confidenceText.contains('%')) {
-        final percentage = double.tryParse(confidenceText.split('%')[0]);
-        if (percentage != null) return percentage / 100;
-      }
-      return 0.9;
-    } else if (confidenceText.toLowerCase().contains('medium') ||
-        (confidenceText.contains('%') &&
-            double.tryParse(confidenceText.split('%')[0]) != null &&
-            double.parse(confidenceText.split('%')[0]) > 40)) {
-      if (confidenceText.contains('%')) {
-        final percentage = double.tryParse(confidenceText.split('%')[0]);
-        if (percentage != null) return percentage / 100;
-      }
-      return 0.7;
-    } else {
-      if (confidenceText.contains('%')) {
-        final percentage = double.tryParse(confidenceText.split('%')[0]);
-        if (percentage != null) return percentage / 100;
-      }
-      return 0.3;
+    if (confidenceText.contains('%')) {
+      final percentage = double.tryParse(confidenceText.split('%')[0]);
+      if (percentage != null) return (percentage.clamp(0, 100)) / 100;
     }
+    // Map levels to percent then to fraction
+    return _confidenceLevelToPercent(confidenceText) / 100.0;
+  }
+
+  int _confidenceLevelToPercent(String level) {
+    final l = level.toLowerCase();
+    if (l.contains('high')) return 90;
+    if (l.contains('medium')) return 60;
+    if (l.contains('low')) return 30;
+    final numVal = int.tryParse(level.replaceAll(RegExp(r'[^0-9]'), ''));
+    return (numVal != null) ? numVal.clamp(0, 100) : 60;
   }
 
   // Method to get action recommendation based on harvest status

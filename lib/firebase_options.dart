@@ -17,10 +17,7 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
@@ -70,5 +67,14 @@ class DefaultFirebaseOptions {
     projectId: 'my-fruitveggie',
     storageBucket: 'my-fruitveggie.firebasestorage.app',
     iosBundleId: 'com.example.harvestapp',
+  );
+
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyC-2Am69hIxOMr8UIiudpY7vGxEniw0iBE',
+    appId: '1:920334294602:web:4c83ad9fe2f9a5be9b10b3',
+    messagingSenderId: '920334294602',
+    projectId: 'my-fruitveggie',
+    storageBucket: 'my-fruitveggie.firebasestorage.app',
+    authDomain: 'my-fruitveggie.firebaseapp.com',
   );
 }
