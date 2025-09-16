@@ -21,7 +21,13 @@ Return ONLY a valid JSON object (no code fences, no extra text) with these exact
   "type": "<specific produce name, e.g., Tomato, Banana>",
   "category": "<Fruit or Vegetable>",
   "confidence": "<High|Medium|Low>",
-  "not_produce": <true|false>
+  "not_produce": <true|false>,
+  "color": "<color description>",
+  "texture": "<texture description>",
+  "size": "<size description in cm>",
+  "physical_cues": "<physical indicators of ripeness>",
+  "ideal_characteristics": "<description of ideal characteristics for this produce>",
+  "action_recommendation": "<recommendation based on ripeness state>"
 }
 
 Rules:
@@ -29,7 +35,10 @@ Rules:
 - Ripeness 0 means unripe, 100 means fully ripe.
 - If spoiled/overripe, set "okay_to_harvest": false and "days_to_harvest": 0.
 - Ensure the JSON is syntactically valid and complete (all fields present).
- - If the image does NOT contain any fruit or vegetable (e.g., people, animals, objects, landscapes, processed food), set "not_produce": true and fill other fields conservatively (ripeness: 0, okay_to_harvest: false, days_to_harvest: 0, image_description: brief reason). In this case still return a valid JSON.
+- For color, texture, size, and physical_cues, provide detailed observations.
+- Include ideal_characteristics as a reference for optimal state of this produce.
+- Provide action_recommendation based on current ripeness state.
+- If the image does NOT contain any fruit or vegetable (e.g., people, animals, objects, landscapes, processed food), set "not_produce": true and fill other fields conservatively (ripeness: 0, okay_to_harvest: false, days_to_harvest: 0, image_description: brief reason). In this case still return a valid JSON.
 ''';
 
   ImageAnalysisService() {
@@ -161,11 +170,16 @@ Rules:
       "okay_to_harvest": _validateBoolean(parsed["okay_to_harvest"]),
       "days_to_harvest": _validateDaysToHarvest(parsed["days_to_harvest"]),
       "image_description": _validateDescription(parsed["image_description"]),
-      // pass through type and category if present
       "type": _validateDescription(parsed["type"]),
       "category": _validateDescription(parsed["category"]),
       "confidence": _validateConfidence(parsed["confidence"]),
       "not_produce": _validateBoolean(parsed["not_produce"]),
+      "color": _validateDescription(parsed["color"]),
+      "texture": _validateDescription(parsed["texture"]),
+      "size": _validateDescription(parsed["size"]),
+      "physical_cues": _validateDescription(parsed["physical_cues"]),
+      "ideal_characteristics": _validateDescription(parsed["ideal_characteristics"]),
+      "action_recommendation": _validateDescription(parsed["action_recommendation"]),
     };
   }
 

@@ -294,8 +294,8 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
             results['detected_category'].toLowerCase() != 'unknown') {
           _parsedResults['Category'] = results['detected_category'];
         } else if (_detectedType != 'Unknown') {
-          // If we know the type but not the category, determine it
-          _parsedResults['Category'] = _determineProduceCategory(_detectedType);
+          // Get category directly from AI result
+          _parsedResults['Category'] = results['category'] ?? 'Fruit';
         } else {
           // Default to Fruit if we can't determine
           _parsedResults['Category'] = 'Fruit';
@@ -312,11 +312,10 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
             results['detected_size'].toString().trim().isNotEmpty) {
           // Format size to match dataset
           String originalSize = results['detected_size'].toString();
-          _parsedResults['Size'] =
-              _validateAndFormatSize(originalSize, _detectedType);
+          _parsedResults['Size'] = originalSize;
         } else {
-          // Use default size based on detected type
-          _parsedResults['Size'] = _getDefaultSizeForType(_detectedType);
+          // Use size from AI analysis
+          _parsedResults['Size'] = results['size'] ?? '8-10 cm';
         }
 
         // Add color with validation
@@ -324,37 +323,32 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
             results['detected_color'] != null &&
             results['detected_color'].toLowerCase() != 'unknown' &&
             results['detected_color'].toString().trim().isNotEmpty) {
-          // Map color to dataset values
-          String originalColor = results['detected_color'].toString();
-          _parsedResults['Color'] = _mapColorToDataset(originalColor);
+          // Use color directly from AI analysis
+          _parsedResults['Color'] = results['detected_color'].toString();
         } else {
-          // Use default color based on detected type
-          _parsedResults['Color'] = _getDefaultColorForType(_detectedType);
+          // Use color from AI analysis
+          _parsedResults['Color'] = results['color'] ?? 'Mixed';
         }
 
         if (results.containsKey('detected_texture') &&
             results['detected_texture'] != null &&
             results['detected_texture'].toString().trim().isNotEmpty) {
-          // Map texture to dataset values
-          String originalTexture = results['detected_texture'].toString();
-          _parsedResults['Texture'] = _mapTextureToDataset(originalTexture);
+          // Use texture directly from AI analysis
+          _parsedResults['Texture'] = results['detected_texture'].toString();
         } else {
-          // Use default texture based on detected type
-          _parsedResults['Texture'] = _getDefaultTextureForType(_detectedType);
+          // Use texture from AI analysis
+          _parsedResults['Texture'] = results['texture'] ?? 'Smooth';
         }
 
         // Add physical cues with validation
         if (results.containsKey('detected_physical_cues') &&
             results['detected_physical_cues'] != null &&
             results['detected_physical_cues'].toString().trim().isNotEmpty) {
-          // Map physical cues to dataset values
-          String originalCues = results['detected_physical_cues'].toString();
-          _parsedResults['Physical Cues'] =
-              _mapPhysicalCuesToDataset(originalCues);
+          // Use physical cues directly from AI analysis
+          _parsedResults['Physical Cues'] = results['detected_physical_cues'].toString();
         } else {
-          // Use default physical cues based on detected type
-          _parsedResults['Physical Cues'] =
-              _getDefaultPhysicalCuesForType(_detectedType);
+          // Use physical cues from AI analysis
+          _parsedResults['Physical Cues'] = results['physical_cues'] ?? 'None observed';
         }
 
         // Add surface condition with validation
@@ -379,24 +373,47 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                 results['reconciled_result'].toString();
           } else {
             // Use our new improved function if we have AI predictions available
-            if (results.containsKey('gemini_prediction')) {
-              _parsedResults['Ready for Harvest'] =
-                  _getHarvestReadinessFromAIResults(results);
+            if (results.containsKey('okay_to_harvest')) {
+              bool okayToHarvest = results['okay_to_harvest'] ?? false;
+              _parsedResults['Ready for Harvest'] = okayToHarvest ? 'Ready for harvest' : 'Not ready for harvest';
               debugPrint(
                   'Using AI service prediction: ${_parsedResults['Ready for Harvest']}');
             } else {
-              // Fallback to original method if no AI prediction is available
-              String preprocessedResult = _preprocessMlResult(mlResult);
-              _parsedResults['Ready for Harvest'] =
-                  _mapRipenessState(preprocessedResult);
+              // Fallback: assume ready for harvest if no AI prediction
+              _parsedResults['Ready for Harvest'] = 'Ready for harvest';
             }
           }
 
           // Enhance ripeness detection using color patterns
           _enhanceRipenessDetection(results);
 
-          // Update ripeness based on harvest readiness
-          _updateRipenessPercentage(results);
+          // Update ripeness percentage from AI results
+          if (results.containsKey('ripeness')) {
+            int ripenessPercentage = results['ripeness'];
+            String ripenessDescription = '';
+            
+            if (ripenessPercentage < 30) {
+              ripenessDescription = 'Unripe';
+            } else if (ripenessPercentage < 60) {
+              ripenessDescription = 'Partially ripe';
+            } else if (ripenessPercentage < 90) {
+              ripenessDescription = 'Nearly ripe';
+            } else if (ripenessPercentage <= 100) {
+              ripenessDescription = 'Fully ripe';
+            } else {
+              ripenessDescription = 'Overripe';
+            }
+            
+            int daysUntilHarvest = results['days_to_harvest'] ?? _predictDaysUntilHarvest(results);
+            
+            if (daysUntilHarvest > 0) {
+              _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Estimated $daysUntilHarvest days until harvest)';
+            } else if (daysUntilHarvest == 0) {
+              _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Ready for harvest now)';
+            } else {
+              _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Past optimal harvest time)';
+            }
+          }
         } else if (results.containsKey('combined_result')) {
           String combinedResult = results['combined_result'].toString();
           _parsedResults['Harvest Analysis'] = combinedResult;
@@ -408,40 +425,85 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                 results['reconciled_result'].toString();
           } else {
             // Use our new improved function if we have AI predictions available
-            if (results.containsKey('gemini_prediction')) {
-              _parsedResults['Ready for Harvest'] =
-                  _getHarvestReadinessFromAIResults(results);
+            if (results.containsKey('okay_to_harvest')) {
+              bool okayToHarvest = results['okay_to_harvest'] ?? false;
+              _parsedResults['Ready for Harvest'] = okayToHarvest ? 'Ready for harvest' : 'Not ready for harvest';
               debugPrint(
                   'Using AI service prediction: ${_parsedResults['Ready for Harvest']}');
             } else {
-              // Fallback to original method if no AI prediction is available
-              String preprocessedResult = _preprocessMlResult(combinedResult);
-              _parsedResults['Ready for Harvest'] =
-                  _mapRipenessState(preprocessedResult);
+              // Fallback: assume ready for harvest if no AI prediction
+              _parsedResults['Ready for Harvest'] = 'Ready for harvest';
             }
           }
 
-          // Enhance ripeness detection using color patterns
-          _enhanceRipenessDetection(results);
+          // AI provides comprehensive ripeness analysis - no enhancement needed
 
-          // Update ripeness based on harvest readiness
-          _updateRipenessPercentage(results);
+          // Update ripeness percentage from AI results
+          if (results.containsKey('ripeness')) {
+            int ripenessPercentage = results['ripeness'];
+            String ripenessDescription = '';
+            
+            if (ripenessPercentage < 30) {
+              ripenessDescription = 'Unripe';
+            } else if (ripenessPercentage < 60) {
+              ripenessDescription = 'Partially ripe';
+            } else if (ripenessPercentage < 90) {
+              ripenessDescription = 'Nearly ripe';
+            } else if (ripenessPercentage <= 100) {
+              ripenessDescription = 'Fully ripe';
+            } else {
+              ripenessDescription = 'Overripe';
+            }
+            
+            int daysUntilHarvest = results['days_to_harvest'] ?? _predictDaysUntilHarvest(results);
+            
+            if (daysUntilHarvest > 0) {
+              _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Estimated $daysUntilHarvest days until harvest)';
+            } else if (daysUntilHarvest == 0) {
+              _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Ready for harvest now)';
+            } else {
+              _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Past optimal harvest time)';
+            }
+          }
         } else {
           _parsedResults['Ready for Harvest'] = 'unknown';
           _parsedResults['Harvest Analysis'] =
               'Unable to determine harvest readiness';
 
-          // Update ripeness based on harvest readiness
-          _updateRipenessPercentage(results);
+          // Update ripeness percentage from AI results
+          if (results.containsKey('ripeness')) {
+            int ripenessPercentage = results['ripeness'];
+            String ripenessDescription = '';
+            
+            if (ripenessPercentage < 30) {
+              ripenessDescription = 'Unripe';
+            } else if (ripenessPercentage < 60) {
+              ripenessDescription = 'Partially ripe';
+            } else if (ripenessPercentage < 90) {
+              ripenessDescription = 'Nearly ripe';
+            } else if (ripenessPercentage <= 100) {
+              ripenessDescription = 'Fully ripe';
+            } else {
+              ripenessDescription = 'Overripe';
+            }
+            
+            int daysUntilHarvest = results['days_to_harvest'] ?? 7;
+            
+            if (daysUntilHarvest > 0) {
+              _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Estimated $daysUntilHarvest days until harvest)';
+            } else if (daysUntilHarvest == 0) {
+              _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Ready for harvest now)';
+            } else {
+              _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Past optimal harvest time)';
+            }
+          }
         }
 
-        // Add confidence score with improved accuracy
-        double overallConfidence = _calculateOverallConfidence(results);
-        final confidencePercentage =
-            (overallConfidence * 100).toStringAsFixed(1);
-        final confidenceLevel = _getConfidenceLevel(overallConfidence);
+        // Add confidence score from AI analysis
+        int aiConfidence = results['confidence'] ?? 75;
+        final confidenceLevel = _getConfidenceLevel(aiConfidence / 100.0);
         _parsedResults['Analysis Confidence'] =
-            '$confidencePercentage% - $confidenceLevel';
+            '$aiConfidence% - $confidenceLevel';
       } else {
         // Use manual input - also use the new ImageAnalysisService
         results = await _imageAnalysisService.analyze(imageFile)
@@ -566,9 +628,8 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
               results['detected_category'].toLowerCase() != 'unknown') {
             _parsedResults['Category'] = results['detected_category'];
           } else if (_detectedType != 'Unknown') {
-            // If we know the type but not the category, determine it
-            _parsedResults['Category'] =
-                _determineProduceCategory(_detectedType);
+            // Get category directly from AI result
+            _parsedResults['Category'] = results['category'] ?? 'Fruit';
           } else {
             // Default to Fruit if we can't determine
             _parsedResults['Category'] = 'Fruit';
@@ -578,13 +639,12 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
           if (results.containsKey('detected_size') &&
               results['detected_size'] != null &&
               results['detected_size'].toString().trim().isNotEmpty) {
-            // Format size to match dataset
+            // Use size directly from AI analysis
             String originalSize = results['detected_size'].toString();
-            _parsedResults['Size'] =
-                _validateAndFormatSize(originalSize, _detectedType);
+            _parsedResults['Size'] = originalSize;
           } else {
-            // Use default size based on detected type
-            _parsedResults['Size'] = _getDefaultSizeForType(_detectedType);
+            // Use size from AI analysis
+            _parsedResults['Size'] = results['size'] ?? '8-10 cm';
           }
 
           // Add color with validation
@@ -592,39 +652,36 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
               results['detected_color'] != null &&
               results['detected_color'].toLowerCase() != 'unknown' &&
               results['detected_color'].toString().trim().isNotEmpty) {
-            // Map color to dataset values
+            // Use color directly from AI analysis
             String originalColor = results['detected_color'].toString();
-            _parsedResults['Color'] = _mapColorToDataset(originalColor);
+            _parsedResults['Color'] = originalColor;
           } else {
-            // Use default color based on detected type
-            _parsedResults['Color'] = _getDefaultColorForType(_detectedType);
+            // Use color from AI analysis
+            _parsedResults['Color'] = results['color'] ?? 'Mixed';
           }
 
           // Add texture with validation
           if (results.containsKey('detected_texture') &&
               results['detected_texture'] != null &&
               results['detected_texture'].toString().trim().isNotEmpty) {
-            // Map texture to dataset values
+            // Use texture directly from AI analysis
             String originalTexture = results['detected_texture'].toString();
-            _parsedResults['Texture'] = _mapTextureToDataset(originalTexture);
+            _parsedResults['Texture'] = originalTexture;
           } else {
-            // Use default texture based on detected type
-            _parsedResults['Texture'] =
-                _getDefaultTextureForType(_detectedType);
+            // Use texture from AI analysis
+            _parsedResults['Texture'] = results['texture'] ?? 'Smooth';
           }
 
           // Add physical cues with validation
           if (results.containsKey('detected_physical_cues') &&
               results['detected_physical_cues'] != null &&
               results['detected_physical_cues'].toString().trim().isNotEmpty) {
-            // Map physical cues to dataset values
+            // Use physical cues directly from AI analysis
             String originalCues = results['detected_physical_cues'].toString();
-            _parsedResults['Physical Cues'] =
-                _mapPhysicalCuesToDataset(originalCues);
+            _parsedResults['Physical Cues'] = originalCues;
           } else {
-            // Use default physical cues based on detected type
-            _parsedResults['Physical Cues'] =
-                _getDefaultPhysicalCuesForType(_detectedType);
+            // Use physical cues from AI analysis
+            _parsedResults['Physical Cues'] = results['physical_cues'] ?? 'None observed';
           }
 
           // Add surface condition with validation
@@ -649,10 +706,10 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
               _parsedResults['Ready for Harvest'] =
                   results['reconciled_result'].toString();
             } else {
-              // Use our new improved function if we have AI predictions available
-              if (results.containsKey('gemini_prediction')) {
-                _parsedResults['Ready for Harvest'] =
-                    _getHarvestReadinessFromAIResults(results);
+              // Use AI harvest readiness if available
+              if (results.containsKey('okay_to_harvest')) {
+                bool okayToHarvest = results['okay_to_harvest'] ?? false;
+                _parsedResults['Ready for Harvest'] = okayToHarvest ? 'Ready for harvest' : 'Not ready for harvest';
                 debugPrint(
                     'Using AI service prediction: ${_parsedResults['Ready for Harvest']}');
               } else {
@@ -666,8 +723,33 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
             // Enhance ripeness detection using color patterns
             _enhanceRipenessDetection(results);
 
-            // Update ripeness based on harvest readiness
-            _updateRipenessPercentage(results);
+            // Update ripeness percentage from AI results
+            if (results.containsKey('ripeness')) {
+              int ripenessPercentage = results['ripeness'];
+              String ripenessDescription = '';
+              
+              if (ripenessPercentage < 30) {
+                ripenessDescription = 'Unripe';
+              } else if (ripenessPercentage < 60) {
+                ripenessDescription = 'Partially ripe';
+              } else if (ripenessPercentage < 90) {
+                ripenessDescription = 'Nearly ripe';
+              } else if (ripenessPercentage <= 100) {
+                ripenessDescription = 'Fully ripe';
+              } else {
+                ripenessDescription = 'Overripe';
+              }
+              
+              int daysUntilHarvest = results['days_to_harvest'] ?? _predictDaysUntilHarvest(results);
+              
+              if (daysUntilHarvest > 0) {
+                _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Estimated $daysUntilHarvest days until harvest)';
+              } else if (daysUntilHarvest == 0) {
+                _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Ready for harvest now)';
+              } else {
+                _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Past optimal harvest time)';
+              }
+            }
           } else if (results.containsKey('combined_result')) {
             String combinedResult = results['combined_result'].toString();
             _parsedResults['Harvest Analysis'] = combinedResult;
@@ -678,10 +760,10 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
               _parsedResults['Ready for Harvest'] =
                   results['reconciled_result'].toString();
             } else {
-              // Use our new improved function if we have AI predictions available
-              if (results.containsKey('gemini_prediction')) {
-                _parsedResults['Ready for Harvest'] =
-                    _getHarvestReadinessFromAIResults(results);
+              // Use AI harvest readiness if available
+              if (results.containsKey('okay_to_harvest')) {
+                bool okayToHarvest = results['okay_to_harvest'] ?? false;
+                _parsedResults['Ready for Harvest'] = okayToHarvest ? 'Ready for harvest' : 'Not ready for harvest';
                 debugPrint(
                     'Using AI service prediction: ${_parsedResults['Ready for Harvest']}');
               } else {
@@ -695,24 +777,72 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
             // Enhance ripeness detection using color patterns
             _enhanceRipenessDetection(results);
 
-            // Update ripeness based on harvest readiness
-            _updateRipenessPercentage(results);
+            // Update ripeness percentage from AI results
+            if (results.containsKey('ripeness')) {
+              int ripenessPercentage = results['ripeness'];
+              String ripenessDescription = '';
+              
+              if (ripenessPercentage < 30) {
+                ripenessDescription = 'Unripe';
+              } else if (ripenessPercentage < 60) {
+                ripenessDescription = 'Partially ripe';
+              } else if (ripenessPercentage < 90) {
+                ripenessDescription = 'Nearly ripe';
+              } else if (ripenessPercentage <= 100) {
+                ripenessDescription = 'Fully ripe';
+              } else {
+                ripenessDescription = 'Overripe';
+              }
+              
+              int daysUntilHarvest = results['days_to_harvest'] ?? _predictDaysUntilHarvest(results);
+              
+              if (daysUntilHarvest > 0) {
+                _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Estimated $daysUntilHarvest days until harvest)';
+              } else if (daysUntilHarvest == 0) {
+                _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Ready for harvest now)';
+              } else {
+                _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Past optimal harvest time)';
+              }
+            }
           } else {
             _parsedResults['Ready for Harvest'] = 'unknown';
             _parsedResults['Harvest Analysis'] =
                 'Unable to determine harvest readiness';
 
-            // Update ripeness based on harvest readiness
-            _updateRipenessPercentage(results);
+            // Update ripeness percentage from AI results
+            if (results.containsKey('ripeness')) {
+              int ripenessPercentage = results['ripeness'];
+              String ripenessDescription = '';
+              
+              if (ripenessPercentage < 30) {
+                ripenessDescription = 'Unripe';
+              } else if (ripenessPercentage < 60) {
+                ripenessDescription = 'Partially ripe';
+              } else if (ripenessPercentage < 90) {
+                ripenessDescription = 'Nearly ripe';
+              } else if (ripenessPercentage <= 100) {
+                ripenessDescription = 'Fully ripe';
+              } else {
+                ripenessDescription = 'Overripe';
+              }
+              
+              int daysUntilHarvest = results['days_to_harvest'] ?? 7;
+              
+              if (daysUntilHarvest > 0) {
+                _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Estimated $daysUntilHarvest days until harvest)';
+              } else if (daysUntilHarvest == 0) {
+                _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Ready for harvest now)';
+              } else {
+                _parsedResults['Ripeness'] = '$ripenessPercentage% - $ripenessDescription (Past optimal harvest time)';
+              }
+            }
           }
 
-          // Add combined confidence with improved accuracy
-          double overallConfidence = _calculateOverallConfidence(results);
-          final confidencePercentage =
-              (overallConfidence * 100).toStringAsFixed(1);
-          final confidenceLevel = _getConfidenceLevel(overallConfidence);
+          // Add confidence score from AI analysis
+          int aiConfidence = results['confidence'] ?? 75;
+          final confidenceLevel = _getConfidenceLevel(aiConfidence / 100.0);
           _parsedResults['Analysis Confidence'] =
-              '$confidencePercentage% - $confidenceLevel';
+              '$aiConfidence% - $confidenceLevel';
 
           // Add explanation for mixed results if available
           if (results.containsKey('combined_explanation')) {
@@ -914,7 +1044,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
       'timestamp': DateTime.now().toIso8601String(),
       'ripeness': ripeness,
       'detected_type': aiType.isNotEmpty ? aiType : _extractProduceTypeFromDescription(description),
-      'detected_category': aiCategory.isNotEmpty ? aiCategory : _determineCategoryFromDescription(description),
+      'detected_category': aiCategory.isNotEmpty ? aiCategory : 'Fruit',
       'ripeness_status': harvestStatus,
       'ready_for_harvest': okayToHarvest,
       'days_until_harvest': daysToHarvest,
@@ -967,35 +1097,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
     return 'Unknown Produce';
   }
 
-  // Determine category from description
-  String _determineCategoryFromDescription(String description) {
-    final lowerDesc = description.toLowerCase();
-    
-    // Check for fruit indicators
-    if (lowerDesc.contains('fruit') || 
-        lowerDesc.contains('apple') || 
-        lowerDesc.contains('banana') || 
-        lowerDesc.contains('orange') ||
-        lowerDesc.contains('berry') ||
-        lowerDesc.contains('grape') ||
-        lowerDesc.contains('citrus')) {
-      return 'Fruit';
-    }
-    
-    // Check for vegetable indicators
-    if (lowerDesc.contains('vegetable') || 
-        lowerDesc.contains('carrot') || 
-        lowerDesc.contains('potato') || 
-        lowerDesc.contains('onion') ||
-        lowerDesc.contains('pepper') ||
-        lowerDesc.contains('cucumber') ||
-        lowerDesc.contains('lettuce') ||
-        lowerDesc.contains('leafy')) {
-      return 'Vegetable';
-    }
-    
-    return 'Unknown';
-  }
+
 
   // Apply ImageAnalysisService results directly to UI and finish
   void _setUiFromImageAnalysis(Map<String, dynamic> results) {
@@ -1075,13 +1177,14 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
 
       // Set default values for the UI that align with dataset structure
       _detectedType = fallbackType;
-      _parsedResults['Category'] = _determineProduceCategory(fallbackType);
       _parsedResults['Type'] = _detectedType;
-      _parsedResults['Size'] = _getDefaultSizeForType(_detectedType);
-      _parsedResults['Texture'] = _getDefaultTextureForType(_detectedType);
-      _parsedResults['Color'] = _getDefaultColorForType(_detectedType);
-      _parsedResults['Physical Cues'] =
-          _getDefaultPhysicalCuesForType(_detectedType);
+      
+      // Use default values for error case
+      _parsedResults['Category'] = 'Fruit';
+      _parsedResults['Size'] = '8-10 cm';
+      _parsedResults['Texture'] = 'Smooth';
+      _parsedResults['Color'] = 'Mixed';
+      _parsedResults['Physical Cues'] = 'None observed';
       _parsedResults['Ready for Harvest'] = 'ready_for_harvest';
 
       // Store basic analysis results for error case
@@ -1944,9 +2047,8 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                                   const SizedBox(width: 8),
                                                   Expanded(
                                                     child: Text(
-                                                      _getActionRecommendation(
-                                                          _parsedResults[
-                                                              'Ready for Harvest']!),
+                                                      results['action_recommendation'] ?? 
+                                                          "No specific recommendation available for this produce.",
                                                       style: const TextStyle(
                                                         color: Colors.white,
                                                         fontSize: 14,
@@ -2050,8 +2152,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                                           'No detailed analysis available' ||
                                                       _analysisResult.isEmpty
                                                   ? 'Analysis is based on the visual characteristics of this $_detectedType. The color, texture, and overall appearance indicate the current harvest readiness status.'
-                                                  : _ensureAnalysisMatchesStatus(
-                                                      _analysisResult),
+                                                  : _analysisResult,
                                               style: TextStyle(
                                                 fontSize: 15,
                                                 height: 1.6,
@@ -2112,22 +2213,14 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                                       .containsKey('Color'))
                                                     _buildCharacteristicRow(
                                                       'Color',
-                                                      _enhanceCharacteristicDetail(
-                                                          'Color',
-                                                          _parsedResults[
-                                                              'Color']!,
-                                                          _detectedType),
+                                                      _parsedResults['Color']!,
                                                       Icons.color_lens,
                                                     ),
                                                   if (_parsedResults
                                                       .containsKey('Texture'))
                                                     _buildCharacteristicRow(
                                                       'Texture',
-                                                      _enhanceCharacteristicDetail(
-                                                          'Texture',
-                                                          _parsedResults[
-                                                              'Texture']!,
-                                                          _detectedType),
+                                                      _parsedResults['Texture']!,
                                                       Icons.texture,
                                                     ),
                                                   if (_parsedResults
@@ -2135,11 +2228,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                                           'Physical Cues'))
                                                     _buildCharacteristicRow(
                                                       'Physical Cues',
-                                                      _enhanceCharacteristicDetail(
-                                                          'Physical Cues',
-                                                          _parsedResults[
-                                                              'Physical Cues']!,
-                                                          _detectedType),
+                                                      _parsedResults['Physical Cues']!,
                                                       Icons.visibility,
                                                     ),
 
@@ -2194,8 +2283,8 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
                                                         const SizedBox(
                                                             height: 12),
                                                         Text(
-                                                          _getIdealCharacteristics(
-                                                              _detectedType),
+                                                          results['ideal_characteristics'] ?? 
+                                                              "Ideal characteristics information not available for this produce.",
                                                           style: TextStyle(
                                                             fontSize: 13,
                                                             color: Colors
@@ -4043,381 +4132,21 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
     return commonProduce[index];
   }
 
-  // Determine produce category based on type
-  String _determineProduceCategory(String produceType) {
-    final String type = produceType.toLowerCase();
 
-    // List of common fruits
-    final List<String> commonFruits = [
-      'watermelon',
-      'papaya',
-      'pineapple',
-      'guava',
-      'jackfruit',
-      'mango',
-      'apple',
-      'banana',
-      'orange',
-      'grape',
-      'strawberry',
-      'melon'
-    ];
 
-    // List of common vegetables
-    final List<String> commonVegetables = [
-      'corn',
-      'eggplant',
-      'okra',
-      'squash',
-      'beans',
-      'carrot',
-      'potato',
-      'onion',
-      'garlic',
-      'tomato',
-      'lettuce',
-      'cabbage',
-      'broccoli'
-    ];
 
-    // Check if type matches any fruit
-    if (commonFruits.any((fruit) => type.contains(fruit))) {
-      return 'Fruit';
-    }
 
-    // Check if type matches any vegetable
-    if (commonVegetables.any((vegetable) => type.contains(vegetable))) {
-      return 'Vegetable';
-    }
 
-    // Default to 'Fruit' when type doesn't match any known produce
-    return 'Fruit';
-  }
 
-  // Validate and format size to standard format
-  String _validateAndFormatSize(String sizeText, String produceType) {
-    // Default value for each produce type
-    final Map<String, String> defaultSizes = {
-      'watermelon': '20-30 cm',
-      'papaya': '15-25 cm',
-      'pineapple': '20-30 cm',
-      'guava': '5-8 cm',
-      'jackfruit': '30-50 cm',
-      'corn': '15-25 cm',
-      'eggplant': '10-15 cm',
-      'okra': '5-10 cm',
-      'squash': '20-30 cm',
-      'beans': '10-20 cm',
-    };
 
-    // Try to standardize the format
-    if (sizeText.contains('cm') || sizeText.contains('centimeter')) {
-      // Already has units, just normalize format
-      return sizeText
-          .replaceAll('centimeter', 'cm')
-          .replaceAll('centimeters', 'cm');
-    }
 
-    // Check if size is just a number
-    if (RegExp(r'^\d+(\.\d+)?$').hasMatch(sizeText.trim())) {
-      return '${sizeText.trim()} cm';
-    }
 
-    // Check for default size based on produce type
-    for (var key in defaultSizes.keys) {
-      if (produceType.toLowerCase().contains(key)) {
-        return defaultSizes[key]!;
-      }
-    }
 
-    return 'Unknown';
-  }
 
-  // Map color to standard dataset values
-  String _mapColorToDataset(String colorText) {
-    // Normalize the color text
-    String normalizedColor = colorText.toLowerCase().trim();
 
-    // Map for common color descriptions
-    Map<String, String> colorMapping = {
-      'red': 'Red',
-      'green': 'Green',
-      'yellow': 'Yellow',
-      'orange': 'Orange',
-      'purple': 'Purple',
-      'brown': 'Brown',
-      'pink': 'Pink',
-      'white': 'White',
-    };
 
-    // Check for color matches
-    for (var key in colorMapping.keys) {
-      if (normalizedColor.contains(key)) {
-        return colorMapping[key]!;
-      }
-    }
 
-    // For more complex descriptions
-    if (normalizedColor.contains('yellowish') ||
-        normalizedColor.contains('pale yellow')) {
-      return 'Light Yellow';
-    }
 
-    if (normalizedColor.contains('dark green')) {
-      return 'Dark Green';
-    }
-
-    if (normalizedColor.contains('light green')) {
-      return 'Light Green';
-    }
-
-    // If no match found, use original value with first letter capitalized
-    if (colorText.isNotEmpty) {
-      return colorText.substring(0, 1).toUpperCase() + colorText.substring(1);
-    }
-
-    return 'Unknown';
-  }
-
-  // Map texture to standard dataset values
-  String _mapTextureToDataset(String textureText) {
-    // Normalize the texture text
-    String normalizedTexture = textureText.toLowerCase().trim();
-
-    // Map for common texture descriptions
-    Map<String, String> textureMapping = {
-      'smooth': 'Smooth',
-      'rough': 'Rough',
-      'soft': 'Soft',
-      'hard': 'Firm',
-      'firm': 'Firm',
-      'bumpy': 'Bumpy',
-      'fuzzy': 'Fuzzy',
-      'spiky': 'Spiky',
-      'sticky': 'Sticky',
-    };
-
-    // Check for texture matches
-    for (var key in textureMapping.keys) {
-      if (normalizedTexture.contains(key)) {
-        return textureMapping[key]!;
-      }
-    }
-
-    // If no match found, use original value with first letter capitalized
-    if (textureText.isNotEmpty) {
-      return textureText.substring(0, 1).toUpperCase() +
-          textureText.substring(1);
-    }
-
-    return 'Unknown';
-  }
-
-  // Map physical cues to standard dataset values
-  String _mapPhysicalCuesToDataset(String cuesText) {
-    if (cuesText.isEmpty) return 'Unknown';
-
-    // Just use the original cues with improved formatting
-    String formatted = cuesText.trim();
-
-    // Capitalize first letter if not already capitalized
-    if (formatted.isNotEmpty && formatted[0].toLowerCase() == formatted[0]) {
-      formatted =
-          formatted.substring(0, 1).toUpperCase() + formatted.substring(1);
-    }
-
-    return formatted;
-  }
-
-  // Preprocess ML result text for better matching
-  String _preprocessMlResult(String mlResult) {
-    // Convert to lowercase for consistent matching
-    String cleanResult = mlResult.toLowerCase();
-
-    // Check for key words that indicate ripeness state
-    if (cleanResult.contains('unripe') ||
-        cleanResult.contains('not ready') ||
-        cleanResult.contains('too early') ||
-        cleanResult.contains('wait longer')) {
-      return 'unripe';
-    }
-
-    if (cleanResult.contains('ready for harvest') ||
-        cleanResult.contains('optimal') ||
-        cleanResult.contains('ideal') ||
-        cleanResult.contains('good time')) {
-      return 'ready_for_harvest';
-    }
-
-    if (cleanResult.contains('overripe') ||
-        cleanResult.contains('too late') ||
-        cleanResult.contains('past prime')) {
-      return 'overripe';
-    }
-
-    // Default case - default to ready for harvest when uncertain
-    return 'ready_for_harvest';
-  }
-
-  // Map ripeness state to standard values
-  String _mapRipenessState(String preprocessedResult) {
-    // We already preprocessed the string to one of these values
-    if (preprocessedResult == 'unripe' ||
-        preprocessedResult == 'ready_for_harvest' ||
-        preprocessedResult == 'overripe') {
-      return preprocessedResult;
-    }
-
-    // Additional checks for common text patterns
-    if (preprocessedResult.toLowerCase().contains('not ready') ||
-        preprocessedResult.toLowerCase().contains('unripe')) {
-      return 'unripe';
-    }
-
-    if (preprocessedResult.toLowerCase().contains('ready') ||
-        preprocessedResult.toLowerCase().contains('optimal') ||
-        preprocessedResult.toLowerCase().contains('yes')) {
-      return 'ready_for_harvest';
-    }
-
-    if (preprocessedResult.toLowerCase().contains('over') ||
-        preprocessedResult.toLowerCase().contains('past')) {
-      return 'overripe';
-    }
-
-    // Default to ready for harvest when uncertain
-    return 'ready_for_harvest';
-  }
-
-  // Calculate overall confidence score
-  double _calculateOverallConfidence(Map<String, dynamic> results) {
-    // Start with a medium confidence
-    double confidence = 0.5;
-
-    // Check for prediction_confidence or detection_confidence from newer AI service
-    if (results.containsKey('detection_confidence')) {
-      String confidenceLevel =
-          results['detection_confidence'].toString().toLowerCase();
-      if (confidenceLevel.contains('high')) {
-        confidence = 0.9;
-      } else if (confidenceLevel.contains('medium')) {
-        confidence = 0.7;
-      } else if (confidenceLevel.contains('low')) {
-        confidence = 0.4;
-      } else if (confidenceLevel.contains('very')) {
-        confidence = confidenceLevel.contains('very high') ? 0.95 : 0.25;
-      }
-      debugPrint('Using detection_confidence: $confidenceLevel -> $confidence');
-    } else if (results.containsKey('prediction_confidence')) {
-      String confidenceLevel =
-          results['prediction_confidence'].toString().toLowerCase();
-      if (confidenceLevel.contains('high')) {
-        confidence = 0.9;
-      } else if (confidenceLevel.contains('medium')) {
-        confidence = 0.7;
-      } else if (confidenceLevel.contains('low')) {
-        confidence = 0.4;
-      }
-      debugPrint(
-          'Using prediction_confidence: $confidenceLevel -> $confidence');
-    }
-
-    // If there's a tensorflow confidence score, use that
-    if (results.containsKey('tensorflow_confidence') &&
-        results['tensorflow_confidence'] is double) {
-      confidence = results['tensorflow_confidence'];
-      debugPrint('Using tensorflow_confidence: $confidence');
-    }
-
-    // If there's a combined confidence score, use that instead
-    if (results.containsKey('combined_confidence') &&
-        results['combined_confidence'] is double) {
-      confidence = results['combined_confidence'];
-      debugPrint('Using combined_confidence: $confidence');
-    }
-
-    // NEW: Adjust confidence based on model agreement
-    if (results.containsKey('models_agree') &&
-        results['models_agree'] == true) {
-      confidence += 0.15; // Significant boost when models agree
-      debugPrint('Boosting confidence due to model agreement: +0.15');
-    }
-
-    // NEW: Adjust confidence based on physical characteristics matching expected values
-    if (results.containsKey('detected_type') &&
-        results.containsKey('detected_color') &&
-        results.containsKey('detected_texture')) {
-      String detectedType = results['detected_type'].toString().toLowerCase();
-      String detectedColor = results['detected_color'].toString().toLowerCase();
-      String detectedTexture =
-          results['detected_texture'].toString().toLowerCase();
-
-      // Check color matches for specific produce types
-      bool colorMatches = false;
-      if ((detectedType.contains('apple') &&
-              (detectedColor.contains('red') ||
-                  detectedColor.contains('green') ||
-                  detectedColor.contains('yellow'))) ||
-          (detectedType.contains('banana') &&
-              (detectedColor.contains('yellow') ||
-                  detectedColor.contains('green'))) ||
-          (detectedType.contains('tomato') &&
-              (detectedColor.contains('red') ||
-                  detectedColor.contains('green'))) ||
-          (detectedType.contains('mango') &&
-              (detectedColor.contains('green') ||
-                  detectedColor.contains('yellow') ||
-                  detectedColor.contains('red')))) {
-        colorMatches = true;
-        confidence += 0.05;
-        debugPrint('Color matches expected for $detectedType: +0.05');
-      }
-
-      // Check texture matches for specific produce types
-      bool textureMatches = false;
-      if ((detectedType.contains('apple') &&
-              detectedTexture.contains('firm')) ||
-          (detectedType.contains('banana') &&
-              detectedTexture.contains('smooth')) ||
-          (detectedType.contains('tomato') &&
-              detectedTexture.contains('smooth')) ||
-          (detectedType.contains('avocado') &&
-              (detectedTexture.contains('firm') ||
-                  detectedTexture.contains('soft')))) {
-        textureMatches = true;
-        confidence += 0.05;
-        debugPrint('Texture matches expected for $detectedType: +0.05');
-      }
-
-      // If both color and texture match expected values, add extra confidence
-      if (colorMatches && textureMatches) {
-        confidence += 0.05;
-        debugPrint('Both color and texture match: additional +0.05');
-      }
-    }
-
-    // NEW: Adjust confidence if result is consistent with ripeness rules
-    if (results.containsKey('detected_type') &&
-        results.containsKey('ripeness_rule_match') &&
-        results['ripeness_rule_match'] == true) {
-      confidence += 0.1;
-      debugPrint('Result matches ripeness rules: +0.1');
-    }
-
-    // NEW: Penalize confidence for low quality images
-    if (results.containsKey('low_quality_image') &&
-        results['low_quality_image'] == true) {
-      confidence -= 0.15;
-      debugPrint('Low quality image: -0.15');
-    }
-
-    // Limit confidence to the range [0.1, 0.98]
-    if (confidence < 0.1) confidence = 0.1;
-    if (confidence > 0.98) confidence = 0.98;
-
-    debugPrint('Final calculated confidence: $confidence');
-    return confidence;
-  }
 
   // Get confidence level text
   String _getConfidenceLevel(double confidence) {
@@ -4448,33 +4177,32 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
       'Note',
     ];
 
-    // Replace any "Unknown" values with appropriate defaults
+    // Replace any "Unknown" values with AI-generated defaults
     if (_parsedResults.containsKey('Type')) {
       final String produceType = _parsedResults['Type']!;
 
       if (_parsedResults.containsKey('Size') &&
           (_parsedResults['Size'] == 'Unknown' ||
               _parsedResults['Size']!.isEmpty)) {
-        _parsedResults['Size'] = _getDefaultSizeForType(produceType);
+        _parsedResults['Size'] = _analysisResults['size'] ?? '8-10 cm';
       }
 
       if (_parsedResults.containsKey('Color') &&
           (_parsedResults['Color'] == 'Unknown' ||
               _parsedResults['Color']!.isEmpty)) {
-        _parsedResults['Color'] = _getDefaultColorForType(produceType);
+        _parsedResults['Color'] = _analysisResults['color'] ?? 'Mixed';
       }
 
       if (_parsedResults.containsKey('Texture') &&
           (_parsedResults['Texture'] == 'Unknown' ||
               _parsedResults['Texture']!.isEmpty)) {
-        _parsedResults['Texture'] = _getDefaultTextureForType(produceType);
+        _parsedResults['Texture'] = _analysisResults['texture'] ?? 'Smooth';
       }
 
       if (_parsedResults.containsKey('Physical Cues') &&
           (_parsedResults['Physical Cues'] == 'Unknown' ||
               _parsedResults['Physical Cues']!.isEmpty)) {
-        _parsedResults['Physical Cues'] =
-            _getDefaultPhysicalCuesForType(produceType);
+        _parsedResults['Physical Cues'] = _analysisResults['physical_cues'] ?? 'None observed';
       }
     }
 
@@ -4497,190 +4225,11 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
     _parsedResults.addAll(orderedResults);
   }
 
-  // Update the ripeness calculation based on harvest readiness
-  void _updateRipenessPercentage(Map<String, dynamic> results) {
-    if (_parsedResults.containsKey('Ready for Harvest')) {
-      String harvestState = _parsedResults['Ready for Harvest']!;
-      int daysUntilHarvest = _predictDaysUntilHarvest(results);
 
-      // Map text descriptions to percentages based on the detailed analysis
-      if (harvestState.toLowerCase().contains('unripe')) {
-        _parsedResults['Ripeness'] = '25% - Unripe';
-      } else if (harvestState.toLowerCase().contains('partially') ||
-          harvestState.toLowerCase().contains('semi')) {
-        _parsedResults['Ripeness'] = '50% - Partially ripe';
-      } else if (harvestState.toLowerCase().contains('mostly') ||
-          harvestState.toLowerCase().contains('nearly')) {
-        _parsedResults['Ripeness'] = '75% - Nearly ripe';
-      } else if (harvestState.toLowerCase().contains('ready') &&
-          !harvestState.toLowerCase().contains('not ready')) {
-        _parsedResults['Ripeness'] = '100% - Fully ripe';
-      } else if (harvestState.toLowerCase().contains('over')) {
-        _parsedResults['Ripeness'] = '120% - Overripe';
-      }
 
-      // Add days until harvest to the ripeness display
-      if (_parsedResults['Ripeness'] != null) {
-        if (daysUntilHarvest > 0) {
-          _parsedResults['Ripeness'] =
-              '${_parsedResults['Ripeness']!} (Estimated $daysUntilHarvest days until harvest)';
-        } else if (daysUntilHarvest == 0) {
-          _parsedResults['Ripeness'] =
-              '${_parsedResults['Ripeness']!} (Ready for harvest now)';
-        } else {
-          _parsedResults['Ripeness'] =
-              '${_parsedResults['Ripeness']!} (Past optimal harvest time)';
-        }
-      }
-    }
-  }
 
-  // Helper to get default size for a given type
-  String _getDefaultSizeForType(String type) {
-    final String typeLower = type.toLowerCase();
 
-    // Common sizes for fruits
-    if (typeLower.contains('apple')) {
-      return '7-10 cm';
-    }
-    if (typeLower.contains('banana')) {
-      return '15-25 cm';
-    }
-    if (typeLower.contains('orange')) {
-      return '6-10 cm';
-    }
-    if (typeLower.contains('watermelon')) {
-      return '20-30 cm';
-    }
-    if (typeLower.contains('papaya')) {
-      return '15-25 cm';
-    }
-    if (typeLower.contains('pineapple')) {
-      return '20-30 cm';
-    }
-    if (typeLower.contains('guava')) {
-      return '5-8 cm';
-    }
-    if (typeLower.contains('jackfruit')) {
-      return '30-50 cm';
-    }
-    if (typeLower.contains('lemon')) {
-      return '5-8 cm';
-    }
-    if (typeLower.contains('mango')) {
-      return '10-15 cm';
-    }
 
-    // Common sizes for vegetables
-    if (typeLower.contains('corn')) {
-      return '15-25 cm';
-    }
-    if (typeLower.contains('eggplant')) {
-      return '10-15 cm';
-    }
-    if (typeLower.contains('okra')) {
-      return '5-10 cm';
-    }
-    if (typeLower.contains('squash')) {
-      return '20-30 cm';
-    }
-    if (typeLower.contains('tomato')) {
-      return '5-8 cm';
-    }
-    if (typeLower.contains('potato')) {
-      return '5-10 cm';
-    }
-    if (typeLower.contains('onion')) {
-      return '5-10 cm';
-    }
-    if (typeLower.contains('carrot')) {
-      return '10-20 cm';
-    }
-    if (typeLower.contains('broccoli')) {
-      return '10-20 cm';
-    }
-    if (typeLower.contains('lettuce')) {
-      return '15-25 cm';
-    }
-
-    // Default size for unknown types
-    return '10-15 cm';
-  }
-
-  // Helper to get default color for a given type
-  String _getDefaultColorForType(String type) {
-    final String typeLower = type.toLowerCase();
-
-    // Common colors for fruits
-    if (typeLower.contains('apple')) {
-      if (typeLower.contains('green')) {
-        return 'Green';
-      }
-      return 'Red';
-    }
-    if (typeLower.contains('banana')) {
-      return 'Yellow';
-    }
-    if (typeLower.contains('orange')) {
-      return 'Orange';
-    }
-    if (typeLower.contains('watermelon')) {
-      return 'Green';
-    }
-    if (typeLower.contains('papaya')) {
-      return 'Green/Yellow';
-    }
-    if (typeLower.contains('pineapple')) {
-      return 'Yellow/Brown';
-    }
-    if (typeLower.contains('guava')) {
-      return 'Green';
-    }
-    if (typeLower.contains('jackfruit')) {
-      return 'Green/Yellow';
-    }
-    if (typeLower.contains('lemon')) {
-      return 'Yellow';
-    }
-    if (typeLower.contains('mango')) {
-      return 'Green/Yellow/Red';
-    }
-
-    // Common colors for vegetables
-    if (typeLower.contains('corn')) {
-      return 'Yellow';
-    }
-    if (typeLower.contains('eggplant')) {
-      return 'Purple';
-    }
-    if (typeLower.contains('okra')) {
-      return 'Green';
-    }
-    if (typeLower.contains('squash')) {
-      return 'Green/Yellow';
-    }
-    if (typeLower.contains('tomato')) {
-      return 'Red';
-    }
-    if (typeLower.contains('potato')) {
-      return 'Brown';
-    }
-    if (typeLower.contains('onion')) {
-      return 'White/Purple';
-    }
-    if (typeLower.contains('carrot')) {
-      return 'Orange';
-    }
-    if (typeLower.contains('broccoli')) {
-      return 'Green';
-    }
-    if (typeLower.contains('lettuce')) {
-      return 'Green';
-    }
-
-    // Default color for unknown types
-    return 'Green';
-  }
 
   // Helper to get default texture for a given type
   String _getDefaultTextureForType(String type) {
@@ -4754,77 +4303,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
     return 'Smooth';
   }
 
-  // Helper to get default physical cues for a given type
-  String _getDefaultPhysicalCuesForType(String type) {
-    final String typeLower = type.toLowerCase();
 
-    // Common physical cues for fruits
-    if (typeLower.contains('apple')) {
-      return 'Round shape';
-    }
-    if (typeLower.contains('banana')) {
-      return 'Curved elongated shape';
-    }
-    if (typeLower.contains('orange')) {
-      return 'Round with dimpled skin';
-    }
-    if (typeLower.contains('watermelon')) {
-      return 'Large oval shape with striped pattern';
-    }
-    if (typeLower.contains('papaya')) {
-      return 'Oblong shape with seeds inside';
-    }
-    if (typeLower.contains('pineapple')) {
-      return 'Prickly exterior with crown of leaves';
-    }
-    if (typeLower.contains('guava')) {
-      return 'Small round fruit with small seeds';
-    }
-    if (typeLower.contains('jackfruit')) {
-      return 'Large with spiky exterior';
-    }
-    if (typeLower.contains('lemon')) {
-      return 'Oval citrus fruit with pointed ends';
-    }
-    if (typeLower.contains('mango')) {
-      return 'Oblong fruit with large seed';
-    }
-
-    // Common physical cues for vegetables
-    if (typeLower.contains('corn')) {
-      return 'Cylindrical with husk and silk';
-    }
-    if (typeLower.contains('eggplant')) {
-      return 'Oblong or oval shape with glossy skin';
-    }
-    if (typeLower.contains('okra')) {
-      return 'Elongated pods with ridge patterns';
-    }
-    if (typeLower.contains('squash')) {
-      return 'Varied shapes with thick rind';
-    }
-    if (typeLower.contains('tomato')) {
-      return 'Round or oval with smooth skin';
-    }
-    if (typeLower.contains('potato')) {
-      return 'Oblong with eyes on the surface';
-    }
-    if (typeLower.contains('onion')) {
-      return 'Round layered bulb';
-    }
-    if (typeLower.contains('carrot')) {
-      return 'Elongated root vegetable with tapering end';
-    }
-    if (typeLower.contains('broccoli')) {
-      return 'Tree-like florets on thick stem';
-    }
-    if (typeLower.contains('lettuce')) {
-      return 'Leafy head with ruffled leaves';
-    }
-
-    // Default physical cues for unknown types
-    return 'Distinctive shape and appearance';
-  }
 
   // Get confidence color based on level
   Color _getConfidenceColor(String confidenceText) {
@@ -4862,325 +4341,9 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
     return (numVal != null) ? numVal.clamp(0, 100) : 60;
   }
 
-  // Method to get action recommendation based on harvest status
-  String _getActionRecommendation(String harvestState) {
-    final lowerCaseState = harvestState.toLowerCase();
-    final String type = _detectedType.toLowerCase();
 
-    if (lowerCaseState.contains('unripe') ||
-        lowerCaseState.contains('not ready')) {
-      // Specific recommendations for unripe produce
-      if (type.contains('banana')) {
-        return 'Store at room temperature and wait for yellow color with slight brown spots.';
-      } else if (type.contains('tomato')) {
-        return 'Keep at room temperature away from direct sunlight until red and slightly soft.';
-      } else if (type.contains('avocado')) {
-        return 'Store at room temperature until skin darkens and yields to gentle pressure.';
-      } else if (type.contains('mango') || type.contains('papaya')) {
-        return 'Keep at room temperature until fruit softens and develops a sweet aroma.';
-      } else if (type.contains('pineapple')) {
-        return 'Wait for the fruit to develop a golden color and sweet tropical aroma.';
-      } else {
-        return 'Continue monitoring for ripeness signs: color changes, softening, and aroma development.';
-      }
-    } else if (lowerCaseState.contains('ready') ||
-        lowerCaseState.contains('harvest')) {
-      // Specific recommendations for ready produce
-      if (type.contains('banana')) {
-        return 'Harvest now. For best flavor, pick when yellow with small brown spots.';
-      } else if (type.contains('tomato')) {
-        return 'Perfect time to harvest. Pick gently to avoid damaging the plant.';
-      } else if (type.contains('avocado')) {
-        return 'Ready to pick. Use within 1-2 days for optimal ripeness.';
-      } else if (type.contains('mango') || type.contains('papaya')) {
-        return 'Harvest now. Fruit should be slightly soft with sweet aroma.';
-      } else if (type.contains('pineapple')) {
-        return 'Optimal time to harvest. Cut at base with sharp knife.';
-      } else {
-        return 'Perfect time to harvest for optimal flavor and texture.';
-      }
-    } else if (lowerCaseState.contains('over') ||
-        lowerCaseState.contains('past')) {
-      // Specific recommendations for overripe produce
-      if (type.contains('banana')) {
-        return 'Best for banana bread or smoothies. Store in refrigerator to slow ripening.';
-      } else if (type.contains('tomato')) {
-        return 'Use immediately in cooked dishes. Store in refrigerator if needed.';
-      } else if (type.contains('avocado')) {
-        return 'Use immediately. Best for guacamole or other mashed preparations.';
-      } else if (type.contains('mango') || type.contains('papaya')) {
-        return 'Best used in smoothies or cooking. Store in refrigerator.';
-      } else if (type.contains('pineapple')) {
-        return 'Use soon in juices or cooking. May be more acidic than optimal.';
-      } else {
-        return 'Past optimal harvest time but may still be usable. Check for spoilage.';
-      }
-    } else {
-      // Generic monitoring advice
-      if (type.contains('banana') ||
-          type.contains('avocado') ||
-          type.contains('mango')) {
-        return 'Monitor color changes and softness daily.';
-      } else if (type.contains('tomato') || type.contains('bell pepper')) {
-        return 'Check color development and firmness regularly.';
-      } else if (type.contains('pineapple') || type.contains('papaya')) {
-        return 'Watch for color changes and check aroma development.';
-      } else {
-        return 'Monitor closely and check for ripeness indicators daily.';
-      }
-    }
-  }
 
-  // Ensure the detailed analysis matches the ripeness status displayed
-  String _ensureAnalysisMatchesStatus(String analysis) {
-    // Get the current harvest readiness status
-    final String harvestStatus = _parsedResults['Ready for Harvest'] ?? '';
-    final String lowerAnalysis = analysis.toLowerCase();
 
-    // Debug logging to trace actual values
-    debugPrint('Current harvest status value: "$harvestStatus"');
-
-    // Check if there's a contradiction between status and analysis text
-    bool statusIsReady = harvestStatus.toLowerCase().contains('ready') &&
-        !harvestStatus.toLowerCase().contains('not ready');
-
-    bool statusIsUnripe = harvestStatus.toLowerCase().contains('not ready') ||
-        harvestStatus.toLowerCase() == 'unripe';
-
-    bool statusIsOverripe = harvestStatus.toLowerCase().contains('overripe') ||
-        harvestStatus.toLowerCase().contains('over-ripe');
-
-    // Additional debug logging
-    debugPrint(
-        'Status is ready: $statusIsReady, Status is unripe: $statusIsUnripe, Status is overripe: $statusIsOverripe');
-
-    // Check what the analysis text indicates
-    bool analysisIndicatesNotReady = lowerAnalysis.contains('not ready') ||
-        lowerAnalysis.contains('unripe') ||
-        lowerAnalysis.contains('needs more time') ||
-        lowerAnalysis.contains('too early');
-
-    bool analysisIndicatesReady = lowerAnalysis.contains('ready for harvest') ||
-        lowerAnalysis.contains('ready to be harvested') ||
-        lowerAnalysis.contains('can be harvested') ||
-        lowerAnalysis.contains('optimal time') ||
-        (lowerAnalysis.contains('ripe') &&
-            !lowerAnalysis.contains('unripe') &&
-            !lowerAnalysis.contains('not ready'));
-
-    bool analysisIndicatesOverripe = lowerAnalysis.contains('overripe') ||
-        lowerAnalysis.contains('over-ripe') ||
-        lowerAnalysis.contains('over ripe') ||
-        lowerAnalysis.contains('past its prime') ||
-        lowerAnalysis.contains('too ripe');
-
-    // Check if days until harvest information is already in the analysis text
-    bool containsDaysInfo = lowerAnalysis.contains('days until harvest') ||
-        lowerAnalysis.contains('days before harvest') ||
-        lowerAnalysis.contains('harvest in') ||
-        lowerAnalysis.contains('wait for') ||
-        RegExp(r'ready in \d+ days').hasMatch(lowerAnalysis);
-
-    // If the analysis is too brief or vague, enhance it with detailed information
-    if (analysis.length < 100 || analysis == 'No detailed analysis available') {
-      final String type = _detectedType.toLowerCase();
-      String enhancedAnalysis = '';
-
-      if (statusIsUnripe) {
-        if (type.contains('tomato')) {
-          enhancedAnalysis =
-              "This tomato is not ready for harvest yet. The current color indicates it needs more time to develop full ripeness. Tomatoes begin green and gradually transition to their final color (red, yellow, or orange depending on variety) as they ripen. The texture is still firm, which is characteristic of unripe tomatoes. Continue to provide adequate sunlight and consistent watering for optimal development.";
-        } else if (type.contains('banana')) {
-          enhancedAnalysis =
-              "This banana is still in its developmental stage and not yet ready for harvest. The green color indicates high starch content that has not yet converted to sugars. As bananas ripen, the green chlorophyll breaks down, revealing the yellow pigments beneath. For optimal ripening, keep at room temperature away from direct sunlight.";
-        } else if (type.contains('apple')) {
-          enhancedAnalysis =
-              "This apple requires more time on the tree to develop optimal flavor, sugar content, and texture. The current state shows insufficient color development typical of mature apples of this variety. Harvesting too early will result in starchy, less flavorful fruit that won't properly develop even after picking.";
-        } else if (type.contains('avocado')) {
-          enhancedAnalysis =
-              "This avocado is not yet harvest-ready. The firm texture and current skin color indicate it needs more time to mature. Avocados soften after harvesting, not on the tree, but they must reach maturity before picking for proper ripening afterward. Once harvested, store at room temperature to continue the ripening process.";
-        } else {
-          enhancedAnalysis =
-              "This $_detectedType requires more time to develop optimal harvest characteristics. Continue monitoring for changes in color, texture, and size that are typical indicators of ripeness for this produce type.";
-        }
-
-        // Replace the original analysis
-        analysis = enhancedAnalysis;
-      } else if (statusIsReady) {
-        if (type.contains('tomato')) {
-          enhancedAnalysis =
-              "This tomato has reached its optimal harvest stage. The color has fully developed, and the fruit yields slightly to gentle pressure without being soft. The skin is smooth and glossy, and there's a slight aroma at the stem end - all indicators of peak ripeness.";
-        } else if (type.contains('banana')) {
-          enhancedAnalysis =
-              "This banana is at its ideal harvest stage. The yellow color indicates that starches have converted to sugars, providing optimal sweetness. The texture is firm but beginning to soften, which is perfect for consumption. No brown spots indicate it hasn't begun to overripen.";
-        } else if (type.contains('apple')) {
-          enhancedAnalysis =
-              "This apple displays the characteristic color development for its variety and has reached optimal harvest maturity. The flesh is firm but not hard, and it should separate easily from the tree when gently twisted - indications that it has developed full flavor.";
-        } else if (type.contains('avocado')) {
-          enhancedAnalysis =
-              "This avocado is ready for harvest. It shows appropriate skin color for its variety and yields slightly to gentle pressure without being soft or mushy. The stem end gives slightly when pressed, indicating the flesh has developed properly.";
-        } else {
-          enhancedAnalysis =
-              "This $_detectedType displays the characteristic signs of harvest readiness. It has reached optimal development in terms of color, size, and texture for its type. Harvesting now will ensure the best flavor and storage quality.";
-        }
-
-        // Replace the original analysis
-        analysis = enhancedAnalysis;
-      }
-    }
-
-    // If the produce is not ready and we have days until harvest data, ensure it's prominently displayed
-    if (statusIsUnripe &&
-        _analysisResults.containsKey('days_until_harvest') &&
-        !containsDaysInfo) {
-      int days = _analysisResults['days_until_harvest'] as int;
-      String daysInfo =
-          '\n\n📅 HARVEST FORECAST: This $_detectedType will be ready for harvest in approximately $days days. ';
-
-      // Add care instructions based on produce type
-      final String type = _detectedType.toLowerCase();
-      if (type.contains('tomato')) {
-        daysInfo +=
-            'Continue to provide adequate sunlight and water regularly. Look for progressive color change from green to red (or variety color) and slight softening.';
-      } else if (type.contains('banana') ||
-          type.contains('mango') ||
-          type.contains('papaya')) {
-        daysInfo +=
-            'Keep at room temperature and away from direct sunlight to continue ripening. Monitor for color changes from green to yellow/orange and slight softening.';
-      } else if (type.contains('apple')) {
-        daysInfo +=
-            'Monitor for complete color development, increasing sweetness, and slight give when pressed gently. The apple should develop more aromatic qualities as it approaches harvest readiness.';
-      } else if (type.contains('avocado')) {
-        daysInfo +=
-            'Keep at room temperature to continue ripening. The skin will darken and the fruit will yield slightly to gentle pressure when ready.';
-      } else if (type.contains('pepper') || type.contains('bell pepper')) {
-        daysInfo +=
-            'Monitor for full size development and thicker walls. For sweet peppers, allowing them to ripen fully enhances their sweetness and nutritional content.';
-      } else {
-        daysInfo +=
-            'Continue monitoring for characteristic color changes, appropriate firmness, and size indicative of harvest readiness for this produce type.';
-      }
-
-      analysis = '$daysInfo\n\n$analysis';
-    }
-
-    // Add a clear harvest status at the beginning of the analysis if it's not already present
-    if (!lowerAnalysis.contains('harvest status') &&
-        !lowerAnalysis.contains('ready for harvest:') &&
-        !lowerAnalysis.contains('ripeness:')) {
-      String statusPrefix;
-      if (statusIsReady) {
-        statusPrefix = "Harvest Status: Ready for harvest\n\n";
-      } else if (statusIsOverripe) {
-        statusPrefix = "Harvest Status: Past optimal harvest time\n\n";
-      } else if (statusIsUnripe) {
-        // Include days until harvest in the status prefix if available
-        if (_analysisResults.containsKey('days_until_harvest')) {
-          int days = _analysisResults['days_until_harvest'] as int;
-          statusPrefix =
-              "Harvest Status: Not ready for harvest yet (estimated $days days until ready)\n\n";
-        } else {
-          statusPrefix = "Harvest Status: Not ready for harvest yet\n\n";
-        }
-      } else {
-        statusPrefix = "";
-      }
-
-      analysis = statusPrefix + analysis;
-    }
-
-    // If there's a contradiction, correct the analysis text
-    if (statusIsReady && analysisIndicatesNotReady && !analysisIndicatesReady) {
-      debugPrint(
-          'Fixing contradiction: Status says ready but analysis says not ready');
-
-      // Replace contradicting phrases
-      analysis = analysis
-          .replaceAll(RegExp(r'not ready for harvest', caseSensitive: false),
-              'ready for harvest')
-          .replaceAll(RegExp(r'needs more time', caseSensitive: false),
-              'has reached optimal ripeness')
-          .replaceAll(
-              RegExp(r'too early', caseSensitive: false), 'at the perfect time')
-          .replaceAll(RegExp(r'unripe', caseSensitive: false), 'ripe');
-
-      // If the text still indicates unripeness, add a correction
-      if (analysis.toLowerCase().contains('not ready') ||
-          analysis.toLowerCase().contains('needs more time')) {
-        analysis =
-            'This $_detectedType is ready for harvest. It has reached optimal ripeness with good color development and texture.\n\n$analysis';
-      }
-    }
-
-    if (statusIsUnripe &&
-        analysisIndicatesReady &&
-        !analysisIndicatesNotReady) {
-      debugPrint(
-          'Fixing contradiction: Status says not ready but analysis says ready');
-
-      // Replace contradicting phrases
-      analysis = analysis
-          .replaceAll(RegExp(r'ready for harvest', caseSensitive: false),
-              'not yet ready for harvest')
-          .replaceAll(RegExp(r'can be harvested', caseSensitive: false),
-              'should wait before harvesting')
-          .replaceAll(
-              RegExp(r'optimal time', caseSensitive: false), 'still developing')
-          .replaceAll(RegExp(r'ripe and ready', caseSensitive: false),
-              'still ripening');
-
-      // If the text still indicates ripeness, add a correction
-      if (analysis.toLowerCase().contains('ready for harvest') ||
-          analysis.toLowerCase().contains('can be harvested')) {
-        final String type = _detectedType.toLowerCase();
-        String specificGuidance = '';
-
-        // Add crop-specific guidance
-        if (type.contains('tomato')) {
-          specificGuidance =
-              " Look for progressive color change from green to red (or variety color) and slight softening. The fruit should have smooth skin and begin developing a sweet aroma as it approaches readiness.";
-        } else if (type.contains('banana')) {
-          specificGuidance =
-              " The color should change from green to yellow with the green chlorophyll breaking down. The fruit will become slightly softer and develop a sweet aroma.";
-        } else if (type.contains('apple')) {
-          specificGuidance =
-              " Look for development of characteristic variety color, increasing sweetness, and a slight give when gently pressed. The fruit should develop aromatic qualities.";
-        } else if (type.contains('avocado')) {
-          specificGuidance =
-              " Monitor for skin color changes and texture that yields slightly to gentle pressure without being mushy.";
-        } else {
-          specificGuidance =
-              " Continue monitoring for characteristic ripeness indicators for this specific crop type.";
-        }
-
-        // Add days until harvest information if available
-        if (_analysisResults.containsKey('days_until_harvest')) {
-          int days = _analysisResults['days_until_harvest'] as int;
-          analysis =
-              'This $_detectedType is not ready for harvest yet. It still needs about $days more days to develop fully.$specificGuidance\n\n$analysis';
-        } else {
-          analysis =
-              'This $_detectedType is not ready for harvest yet. It still needs more time to develop fully.$specificGuidance\n\n$analysis';
-        }
-      }
-    }
-
-    if (statusIsOverripe && !analysisIndicatesOverripe) {
-      debugPrint(
-          'Fixing contradiction: Status says overripe but analysis doesn\'t');
-
-      // Add overripe status if not mentioned
-      if (!analysis.toLowerCase().contains('overripe') &&
-          !analysis.toLowerCase().contains('over-ripe') &&
-          !analysis.toLowerCase().contains('past its prime')) {
-        analysis =
-            'This $_detectedType is past its optimal harvest time and may be overripe. '
-            'It should be used soon for best quality.\n\n$analysis';
-      }
-    }
-
-    return analysis;
-  }
 
   // Display the enhanced results from multiple AI models
   void _setFinalResults(Map<String, dynamic> results) {
@@ -5431,46 +4594,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
     return '';
   }
 
-  // Add this before _updateRipenessPercentage
-  void _enhanceRipenessDetection(Map<String, dynamic> results) {
-    // Only run if we have both type and color
-    if (!_parsedResults.containsKey('Type') ||
-        !_parsedResults.containsKey('Color') ||
-        _parsedResults['Type'] == null ||
-        _parsedResults['Color'] == null) {
-      return;
-    }
 
-    String type = _parsedResults['Type']!;
-    String color = _parsedResults['Color']!;
-
-    // Get ripeness assessment based on color patterns
-    String colorBasedRipeness = _analyzeRipenessFromColors(type, color);
-
-    // Only apply if we got a result and no clear harvest status already exists
-    if (colorBasedRipeness.isNotEmpty &&
-        (!_parsedResults.containsKey('Ready for Harvest') ||
-            _parsedResults['Ready for Harvest'] == null ||
-            _parsedResults['Ready for Harvest']!.isEmpty ||
-            _parsedResults['Ready for Harvest'] == 'unknown')) {
-      debugPrint('Applied color-pattern based ripeness: $colorBasedRipeness');
-      _parsedResults['Ready for Harvest'] = colorBasedRipeness;
-
-      // Update results map for confidence calculation
-      results['color_pattern_match'] = true;
-    }
-    // If we have conflicting information with high confidence results, log but don't override
-    else if (colorBasedRipeness.isNotEmpty &&
-        _parsedResults.containsKey('Ready for Harvest') &&
-        _parsedResults['Ready for Harvest'] != colorBasedRipeness) {
-      debugPrint(
-          'Color pattern suggests $colorBasedRipeness but keeping existing '
-          '${_parsedResults['Ready for Harvest']} assessment');
-
-      // Still note this in results for potential use
-      results['color_pattern_suggests'] = colorBasedRipeness;
-    }
-  }
 
   // Add this method to save results to Firestore
   Future<void> _saveResultsToFirestore(Map<String, dynamic> results) async {
@@ -5613,7 +4737,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
         'category': _parsedResults['Category'] ?? 'Unknown',
         'imagePath': widget.imagePath,
         'imageBase64': imageBase64, // Add base64 encoded image data
-        'confidence': _calculateOverallConfidence(results),
+        'confidence': (results['confidence'] ?? 75) / 100.0,
         'harvestStatus': statusToSave,
         'daysUntilHarvest': daysUntilHarvest,
         'timestamp': FieldValue.serverTimestamp(),
@@ -5699,94 +4823,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
     }
   }
 
-  // NEW: More accurate function to set the harvest readiness from AI results
-  String _getHarvestReadinessFromAIResults(Map<String, dynamic> results) {
-    // First check for the gemini_prediction which is directly extracted by the AI service
-    if (results.containsKey('gemini_prediction')) {
-      bool isReady = results['gemini_prediction'] as bool;
-      if (isReady) {
-        // Check if it's overripe
-        if (results.containsKey('overripe') && results['overripe'] == true) {
-          return 'Overripe';
-        }
-        return 'Ready';
-      } else {
-        return 'Not Ready';
-      }
-    }
 
-    // Check for ripeness percentage in results
-    if (results.containsKey('ripeness_percentage')) {
-      int percentage = results['ripeness_percentage'] as int;
-      if (percentage >= 95) {
-        debugPrint(
-            'Marking as Ready based on ripeness percentage: $percentage%');
-        return 'Ready';
-      } else if (percentage < 60) {
-        return 'Not Ready';
-      }
-    }
-
-    // Check color against known unripe colors for this produce type
-    String produceType = _detectedType.toLowerCase();
-    String color = (_parsedResults['Color'] ?? '').toLowerCase();
-
-    // If fruit is green but shouldn't be, it's likely unripe
-    if (color.contains('green') &&
-        !['lettuce', 'cucumber', 'broccoli', 'kiwi', 'zucchini', 'green apple']
-            .any((t) => produceType.contains(t))) {
-      debugPrint(
-          'Green color detected for non-green produce - marking as Not Ready');
-      return 'Not Ready';
-    }
-
-    // Check for harvest readiness indicators in the analysis text
-    String lowerAnalysis = _analysisResult.toLowerCase();
-    if (lowerAnalysis.contains('fully ripe') ||
-        lowerAnalysis.contains('completely ripe') ||
-        lowerAnalysis.contains('100% ripe') ||
-        (lowerAnalysis.contains('ripe') &&
-            !lowerAnalysis.contains('unripe') &&
-            !lowerAnalysis.contains('not ripe') &&
-            !lowerAnalysis.contains('not ready'))) {
-      debugPrint('Overriding to Ready based on ripeness mentions in analysis');
-      return 'Ready';
-    }
-
-    // Check for harvest readiness indicators
-    if (lowerAnalysis.contains('ready for harvest') &&
-        !lowerAnalysis.contains('not ready for harvest')) {
-      return 'Ready';
-    } else if (lowerAnalysis.contains('overripe')) {
-      return 'Overripe';
-    } else if (lowerAnalysis.contains('not ready') ||
-        lowerAnalysis.contains('unripe') ||
-        lowerAnalysis.contains('immature')) {
-      return 'Not Ready';
-    }
-
-    // If the app has already calculated a ripeness value, check that
-    if (_parsedResults.containsKey('Ripeness')) {
-      String ripeness = _parsedResults['Ripeness']!;
-      if (ripeness.contains('100%') ||
-          ripeness.contains('Fully ripe') ||
-          (ripeness.contains('%') &&
-              int.tryParse(ripeness.split('%')[0]) != null &&
-              int.parse(ripeness.split('%')[0]) >= 95)) {
-        debugPrint(
-            'Overriding to Ready based on existing Ripeness field: $ripeness');
-        return 'Ready';
-      }
-    }
-
-    // Fallback to days until harvest
-    int days = _predictDaysUntilHarvest(results);
-    if (days <= 0) {
-      return 'Ready';
-    } else {
-      return 'Not Ready';
-    }
-  }
 
   // Enhanced function to predict days until harvest based on AI analysis and crop type
   int _predictDaysUntilHarvest(Map<String, dynamic> results) {
@@ -6050,103 +5087,5 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
     return value;
   }
 
-  // Helper method to get ideal characteristics for each produce type
-  String _getIdealCharacteristics(String produceType) {
-    final type = produceType.toLowerCase();
 
-    // Fruits
-    if (type.contains('apple')) {
-      return 'Firm, vibrant color, no soft spots. Red varieties should be deep red, green varieties bright green.';
-    } else if (type.contains('banana')) {
-      return 'Yellow skin with brown spots, slightly firm but yielding to gentle pressure.';
-    } else if (type.contains('orange')) {
-      return 'Deep orange color, firm but slightly springy, heavy for size.';
-    } else if (type.contains('mango')) {
-      return 'Slight give when pressed, sweet aroma at stem, yellow-orange color with possible red blush.';
-    } else if (type.contains('avocado')) {
-      return 'Yields to gentle pressure but not soft, dark skin (Hass variety).';
-    } else if (type.contains('strawberry')) {
-      return 'Bright red color throughout, slight shine, fresh green cap.';
-    } else if (type.contains('grape')) {
-      return 'Firm, plump, well-colored with slight bloom coating.';
-    } else if (type.contains('pear')) {
-      return 'Yields to gentle pressure at neck, aromatic, minimal blemishes.';
-    } else if (type.contains('peach')) {
-      return 'Sweet aroma, gives slightly to pressure, golden/pink color.';
-    } else if (type.contains('plum')) {
-      return 'Firm with slight give, rich color, slight powdery coating.';
-    }
-
-    // Vegetables
-    else if (type.contains('tomato')) {
-      return 'Rich red color, firm but slightly soft, glossy skin.';
-    } else if (type.contains('potato')) {
-      return 'Firm, no sprouts, no green areas, clean skin.';
-    } else if (type.contains('carrot')) {
-      return 'Bright orange, firm, smooth skin, no splits.';
-    } else if (type.contains('cucumber')) {
-      return 'Dark green, firm, smooth skin, medium size.';
-    } else if (type.contains('lettuce')) {
-      return 'Crisp leaves, bright color, no wilting or browning.';
-    } else if (type.contains('pepper') || type.contains('bell pepper')) {
-      return 'Firm, glossy, rich color, heavy for size.';
-    } else if (type.contains('broccoli')) {
-      return 'Dark green, compact head, no yellowing florets.';
-    } else if (type.contains('cauliflower')) {
-      return 'White/cream color, firm, compact head, no discoloration.';
-    } else if (type.contains('onion')) {
-      return 'Firm, dry papery skin, no soft spots or sprouting.';
-    } else if (type.contains('garlic')) {
-      return 'Firm bulb, tight skin, no sprouting, heavy for size.';
-    } else if (type.contains('eggplant')) {
-      return 'Glossy skin, firm, heavy for size, rich purple color.';
-    } else if (type.contains('zucchini')) {
-      return 'Firm, glossy skin, 6-8 inches long, no soft spots.';
-    } else if (type.contains('squash')) {
-      return 'Hard shell, rich color, heavy for size, no soft spots.';
-    }
-
-    // Berries
-    else if (type.contains('blueberry')) {
-      return 'Deep blue with whitish bloom, firm, dry, plump.';
-    } else if (type.contains('raspberry')) {
-      return 'Bright red, easily detaches when ripe, plump segments.';
-    } else if (type.contains('blackberry')) {
-      return 'Deep black, glossy, plump, easily detaches when ripe.';
-    }
-
-    // Tropical Fruits
-    else if (type.contains('pineapple')) {
-      return 'Golden yellow color, sweet aroma, leaves easily pull out.';
-    } else if (type.contains('papaya')) {
-      return 'Mostly yellow-orange skin, yields to pressure, sweet aroma.';
-    } else if (type.contains('kiwi')) {
-      return 'Yields to gentle pressure, fuzzy skin, no wrinkles.';
-    }
-
-    // Citrus
-    else if (type.contains('lemon')) {
-      return 'Bright yellow, firm but slightly springy, smooth skin.';
-    } else if (type.contains('lime')) {
-      return 'Deep green to yellow-green, firm, smooth skin.';
-    } else if (type.contains('grapefruit')) {
-      return 'Heavy for size, firm but not hard, characteristic color.';
-    }
-
-    // Root Vegetables
-    else if (type.contains('beet')) {
-      return 'Firm, smooth skin, deep color, medium size.';
-    } else if (type.contains('radish')) {
-      return 'Firm, crisp, bright color, smooth skin.';
-    } else if (type.contains('turnip')) {
-      return 'Firm, heavy for size, smooth skin, no blemishes.';
-    } else if (type.contains('sweet potato')) {
-      return 'Firm, smooth skin, uniform color, no soft spots.';
-    }
-
-    // Default case
-    else {
-      return 'Firm texture, rich color, free from blemishes or soft spots.';
-    }
-  }
 }
