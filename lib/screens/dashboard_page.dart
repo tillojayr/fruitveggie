@@ -419,7 +419,6 @@ class _DashboardPageState extends State<DashboardPage>
               _recentScans = result.docs.map((doc) {
                 final data = doc.data() as Map<String, dynamic>;
                 final scanId = doc.id;
-
                 // Store the scan ID in the data map for future reference
                 data['scanId'] = scanId;
 
@@ -672,9 +671,6 @@ class _DashboardPageState extends State<DashboardPage>
       imagePath = scan['imagePath'];
     }
 
-    final String confidence = scan['confidence'] != null
-        ? '${(scan['confidence'] * 100).toStringAsFixed(1)}%'
-        : 'N/A';
     final bool hasAnalysis = scan['hasAnalysis'] ?? false;
 
     // Handle different date formats
@@ -693,19 +689,6 @@ class _DashboardPageState extends State<DashboardPage>
 
     // Format time ago
     String timeAgo = _formatTimeAgo(timestamp);
-
-    // Confidence color based on value
-    Color confidenceColor = Colors.grey.shade600;
-    if (scan['confidence'] != null) {
-      double conf = scan['confidence'];
-      if (conf >= 0.8) {
-        confidenceColor = const Color(0xFF2E7D32);
-      } else if (conf >= 0.6) {
-        confidenceColor = const Color(0xFFFF9800);
-      } else {
-        confidenceColor = const Color(0xFFE53935);
-      }
-    }
 
     return GestureDetector(
       onTap: () {
@@ -828,34 +811,6 @@ class _DashboardPageState extends State<DashboardPage>
                           ),
                         ),
                       ),
-                    // Confidence badge
-                    Positioned(
-                      left: 8,
-                      bottom: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: confidenceColor.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.2),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Text(
-                          confidence,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
                   ],
                 ),
               ),
@@ -929,13 +884,13 @@ class _DashboardPageState extends State<DashboardPage>
   Widget _buildImageWidget(String? path, String? base64String,
       {double width = 80, double height = 80}) {
     // Debug log for image loading
-    print(
-        '_buildImageWidget called with path: $path, base64 length: ${base64String?.length ?? 0}');
+    // print(
+    //     '_buildImageWidget called with path: $path, base64 length: ${base64String?.length ?? 0}');
 
     // First try base64 with improved performance
     if (base64String != null && base64String.isNotEmpty) {
       try {
-        print('Attempting to load image from base64');
+        // print('Attempting to load image from base64');
         return FutureBuilder<Uint8List>(
           future: _decodeBase64Async(base64String),
           builder: (context, snapshot) {
@@ -982,7 +937,7 @@ class _DashboardPageState extends State<DashboardPage>
     if (path != null && path.isNotEmpty) {
       if (path.startsWith('http')) {
         // Network image
-        print('Attempting to load network image from: $path');
+        // print('Attempting to load network image from: $path');
         return CachedNetworkImage(
           imageUrl: path,
           width: width,
@@ -1004,7 +959,7 @@ class _DashboardPageState extends State<DashboardPage>
         );
       } else {
         // Local file image
-        print('Attempting to load file image from: $path');
+        // print('Attempting to load file image from: $path');
         try {
           // Normalize file path for mobile
           String normalizedPath = path;
@@ -1070,8 +1025,8 @@ class _DashboardPageState extends State<DashboardPage>
             // Try as a network URL if it appears to be a remote path
             if (normalizedPath.contains('://') ||
                 normalizedPath.contains('storage/')) {
-              print(
-                  'Attempting to load as network image from: $normalizedPath');
+              // print(
+              //     'Attempting to load as network image from: $normalizedPath');
               return CachedNetworkImage(
                 imageUrl: normalizedPath,
                 width: width,
@@ -1215,6 +1170,33 @@ class _DashboardPageState extends State<DashboardPage>
     );
   }
 
+  String _formatTimestamp(dynamic timestamp) {
+    if (timestamp == null) return 'Unknown';
+
+    try {
+      final DateTime date = timestamp is DateTime
+          ? timestamp
+          : timestamp.toDate(); // For Firestore Timestamp
+      return '${date.day}/${date.month}/${date.year}';
+    } catch (e) {
+      return 'Unknown';
+    }
+  }
+
+  String _formatRipeness(dynamic ripeness) {
+    if (ripeness == null) return 'N/A';
+
+    if (ripeness is double) {
+      return '${ripeness.toStringAsFixed(1)}%';
+    } else if (ripeness is int) {
+      return '$ripeness%';
+    } else if (ripeness is String) {
+      return '$ripeness%';
+    }
+
+    return 'N/A';
+  }
+
   // Show detailed information about a scan
   void _showScanDetailsDialog(Map<String, dynamic> scan) {
     final String fruitName = scan['name'] ?? 'Unknown Item';
@@ -1232,6 +1214,10 @@ class _DashboardPageState extends State<DashboardPage>
         ? '${(scan['confidence'] * 100).toStringAsFixed(1)}%'
         : 'N/A';
     final String category = scan['category'] ?? 'Uncategorized';
+    final String scanDate = _formatTimestamp(scan['timestamp']);
+    final String status = scan['harvestStatus'] ?? 'Unknown';
+    final String harvestDate = _formatTimestamp(scan['harvestDate']);
+    final String ripeness = _formatRipeness(scan['ripeness'] ?? 'Unknown');
 
     showDialog(
       context: context,
@@ -1270,6 +1256,38 @@ class _DashboardPageState extends State<DashboardPage>
                           const SizedBox(height: 4),
                           Text(
                             'Category: $category',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Scan Date: $scanDate',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Status: $status',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Harvest date: $harvestDate',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Ripeness: $ripeness%',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey.shade700,
@@ -4700,27 +4718,20 @@ class _DashboardPageState extends State<DashboardPage>
             : isOverripe
                 ? -1
                 : _estimateDaysFromScanData(scanData, daysLeft);
-        debugPrint(
-            'No days until harvest in scan data, estimated $effectiveDaysLeft days');
       }
 
       // Handle overripe status correctly - show as -1 days (past harvest date)
       if (isOverripe && effectiveDaysLeft >= 0) {
         effectiveDaysLeft = -1;
-        debugPrint('Corrected days to -1 for overripe produce');
       }
 
       // Ensure consistency: if ready for harvest, days should be 0
       if (isReadyForHarvest && effectiveDaysLeft > 0) {
         effectiveDaysLeft = 0;
-        debugPrint(
-            'Corrected days until harvest to 0 since produce is marked as ready');
       }
     } else {
       // Fallback to provided daysLeft or use a better default than just 7
       effectiveDaysLeft = daysLeft ?? 0;
-      debugPrint(
-          'No scan data available, using default of $effectiveDaysLeft days');
     }
 
     // Calculate readiness percentage with enhanced logic
@@ -5384,7 +5395,6 @@ class _DashboardPageState extends State<DashboardPage>
       // If the produce is ready, set days to 0 (harvest today)
       if (isReadyForHarvest) {
         daysUntilHarvest = 0;
-        debugPrint('Produce is ready for harvest, setting reminder for today');
       } else {
         // If not ready, check for explicit days_until_harvest field
         if (scan.containsKey('days_until_harvest')) {
@@ -5410,20 +5420,14 @@ class _DashboardPageState extends State<DashboardPage>
       // use our intelligent estimation function
       if (daysUntilHarvest == null || daysUntilHarvest < 0) {
         daysUntilHarvest = _estimateDaysFromScanData(scan, null);
-        debugPrint(
-            'Using AI-based estimation of $daysUntilHarvest days until harvest for reminder');
       } else if (daysUntilHarvest > 90) {
         // Cap very large values to something reasonable
         daysUntilHarvest = 90;
-        debugPrint(
-            'Extremely large days until harvest value capped at 90 days');
       }
 
       // Final consistency check
       if (isReadyForHarvest && daysUntilHarvest > 0) {
         daysUntilHarvest = 0;
-        debugPrint(
-            'Corrected days until harvest to 0 since produce is marked as ready');
       }
 
       // Schedule the reminder with the notification service
@@ -5545,79 +5549,6 @@ class _DashboardPageState extends State<DashboardPage>
               _lastProcessedImageBase64 = imageBase64;
               _lastProcessedProduceType = produceType ?? 'Produce';
             });
-
-            // If there's also a results subcollection, fetch the latest result
-            try {
-              // Use a simpler query without orderBy to avoid permission issues
-              final resultsQuery = await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(currentUser.uid)
-                  .collection('scans')
-                  .doc(scanId)
-                  .collection('results')
-                  .limit(1)
-                  .get();
-
-              if (resultsQuery.docs.isNotEmpty) {
-                final resultData = resultsQuery.docs.first.data();
-                debugPrint(
-                    'Found AI result data: ${resultData.keys.join(', ')}');
-
-                // Full array of fields to copy from result data to scan data
-                final fieldsToInclude = [
-                  'final_prediction',
-                  'gemini_prediction',
-                  'days_until_harvest',
-                  'confidence',
-                  'detailed_analysis',
-                  'ai_response',
-                  'gemini_response',
-                  'tensorflow_result',
-                  'ripeness_percentage',
-                  'nutritional_profile',
-                  'storage_tips',
-                  'expiration_date'
-                ];
-
-                // Update scan with all available result data
-                for (final field in fieldsToInclude) {
-                  if (resultData.containsKey(field)) {
-                    latestScan[field] = resultData[field];
-                    debugPrint('Added $field to scan data');
-                  }
-                }
-
-                // Update the scan in the _recentScans list if it exists
-                if (_recentScans.isNotEmpty) {
-                  // Try to find the scan by ID first
-                  int scanIndex = _recentScans
-                      .indexWhere((scan) => scan['scanId'] == scanId);
-                  if (scanIndex >= 0) {
-                    setState(() {
-                      // Merge the data preserving existing fields
-                      _recentScans[scanIndex] = {
-                        ..._recentScans[scanIndex],
-                        ...latestScan
-                      };
-                    });
-                    debugPrint(
-                        'Updated scan data in _recentScans at index $scanIndex');
-                  } else if (_recentScans.first['imagePath'] == imagePath ||
-                      _recentScans.first['imageUrl'] == imagePath) {
-                    // Fallback to matching by image path
-                    setState(() {
-                      _recentScans[0] = {..._recentScans[0], ...latestScan};
-                    });
-                    debugPrint(
-                        'Updated scan data in _recentScans at index 0 (by image path)');
-                  }
-                }
-              } else {
-                debugPrint('No results found in the results subcollection');
-              }
-            } catch (resultsError) {
-              print('Error fetching scan results: $resultsError');
-            }
           } else if (_recentScans.isNotEmpty) {
             // If no dedicated scan is found, use the first recent scan
             _setLastProcessedFromScan(_recentScans.first);
@@ -5720,9 +5651,6 @@ class _DashboardPageState extends State<DashboardPage>
           _isLoading = false;
         });
       }
-
-      debugPrint(
-          'Loaded ${_activeReminders.length} active reminders after deduplication');
     } catch (e) {
       debugPrint('Error loading active reminders: $e');
       if (mounted) {
@@ -5960,7 +5888,6 @@ class _DashboardPageState extends State<DashboardPage>
     // First try to use base64 image if available
     if (base64Image != null && base64Image.isNotEmpty) {
       try {
-        debugPrint('Loading reminder image from base64 data');
         final Uint8List bytes = base64.decode(base64Image);
         imageWidget = Image.memory(
           bytes,
@@ -5999,7 +5926,6 @@ class _DashboardPageState extends State<DashboardPage>
     // Handle different image path types
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       // Network image
-      debugPrint('Loading reminder network image from: $imagePath');
       imageWidget = CachedNetworkImage(
         imageUrl: imagePath,
         fit: BoxFit.cover,
@@ -6020,7 +5946,6 @@ class _DashboardPageState extends State<DashboardPage>
       if (imagePath.contains('%')) {
         try {
           normalizedPath = Uri.decodeFull(imagePath);
-          debugPrint('Decoded reminder image path: $normalizedPath');
         } catch (e) {
           debugPrint('Error decoding reminder image path: $e');
         }
@@ -6030,7 +5955,6 @@ class _DashboardPageState extends State<DashboardPage>
       if (Platform.isAndroid) {
         if (normalizedPath.startsWith('content://') ||
             normalizedPath.startsWith('file:///')) {
-          debugPrint('Android-specific reminder path: $normalizedPath');
           try {
             final file = File(normalizedPath);
             if (file.existsSync()) {
@@ -6057,13 +5981,12 @@ class _DashboardPageState extends State<DashboardPage>
       }
 
       // Local file image - check if file exists first
-      debugPrint('Checking reminder image file: $normalizedPath');
+      // debugPrint('Checking reminder image file: $normalizedPath');
       final file = File(normalizedPath);
       final fileExists = file.existsSync();
 
       if (fileExists) {
         try {
-          debugPrint('Loading reminder image from file: $normalizedPath');
           imageWidget = Image.file(
             file,
             fit: BoxFit.cover,
@@ -6078,8 +6001,8 @@ class _DashboardPageState extends State<DashboardPage>
         }
       } else {
         // If the file doesn't exist, try to use it as a network URL
-        debugPrint(
-            'Reminder image file not found, trying as URL: $normalizedPath');
+        // debugPrint(
+        //     'Reminder image file not found, trying as URL: $normalizedPath');
 
         // Check if it looks like a network URL or storage path
         if (normalizedPath.contains('://') ||

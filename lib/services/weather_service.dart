@@ -45,7 +45,7 @@ class WeatherData {
     List<String> alerts = [];
 
     // Check for extreme conditions
-    final double temp = json['main']['temp'] - 273.15;
+    final double temp = json['main']['temp'];
     final int humidity = json['main']['humidity'];
     final double windSpeed = json['wind']['speed'];
     final String description =
@@ -104,7 +104,7 @@ class WeatherData {
       temperature: temp,
       description: json['weather'][0]['description'],
       iconCode: json['weather'][0]['icon'],
-      feelsLike: (json['main']['feels_like'] - 273.15),
+      feelsLike: (json['main']['feels_like']),
       humidity: json['main']['humidity'],
       windSpeed: json['wind']['speed'],
       latitude: json['coord']['lat'].toDouble(),

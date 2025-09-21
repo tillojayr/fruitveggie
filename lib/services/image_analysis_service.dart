@@ -20,8 +20,9 @@ Return ONLY a valid JSON object (no code fences, no extra text) with these exact
   "image_description": "<concise description incl. color, shape, and condition>",
   "type": "<specific produce name, e.g., Tomato, Banana>",
   "category": "<Fruit or Vegetable>",
-  "confidence": "<High|Medium|Low>",
-  "not_produce": <true|false>
+  "confidence": "<Integer 0-100>",
+  "not_produce": <true|false>,
+  "produce_type": "<e.g., Citrus, Berry, Leafy Green, Root, etc.>"
 }
 
 Rules:
@@ -57,9 +58,9 @@ Rules:
   }
 
   /// Analyzes an image file and returns structured analysis results
-  /// 
+  ///
   /// [imageFile] - The image file to analyze
-  /// 
+  ///
   /// Returns a Map with the following structure:
   /// {
   ///   "ripeness": int (0-100),
@@ -74,10 +75,10 @@ Rules:
 
     try {
       debugPrint('ImageAnalysisService: Starting image analysis...');
-      
+
       // Read the image file
       final Uint8List imageBytes = await imageFile.readAsBytes();
-      
+
       // Create content with image and prompt
       final content = [
         Content.multi([
@@ -88,7 +89,7 @@ Rules:
 
       // Generate content using Gemini
       final response = await _model.generateContent(content);
-      
+
       if (response.text == null || response.text!.isEmpty) {
         throw Exception('No response received from Gemini AI');
       }
@@ -97,14 +98,13 @@ Rules:
 
       // Parse the JSON response
       final Map<String, dynamic> result = _parseJsonResponse(response.text!);
-      
+
       debugPrint('ImageAnalysisService: Parsed result: $result');
-      
+
       return result;
-      
     } catch (e) {
       debugPrint('ImageAnalysisService: Error during analysis: $e');
-      
+
       // Return default values in case of error
       return {
         "ripeness": 50,
@@ -120,7 +120,7 @@ Rules:
     try {
       // Clean the response - remove any markdown formatting or extra text
       String cleanedResponse = response.trim();
-      
+
       // Remove markdown code blocks if present
       if (cleanedResponse.startsWith('```json')) {
         cleanedResponse = cleanedResponse.substring(7);
@@ -129,25 +129,25 @@ Rules:
         cleanedResponse = cleanedResponse.substring(3);
       }
       if (cleanedResponse.endsWith('```')) {
-        cleanedResponse = cleanedResponse.substring(0, cleanedResponse.length - 3);
+        cleanedResponse =
+            cleanedResponse.substring(0, cleanedResponse.length - 3);
       }
-      
+
       cleanedResponse = cleanedResponse.trim();
-      
+
       // Try to find JSON object in the response
       final jsonStart = cleanedResponse.indexOf('{');
       final jsonEnd = cleanedResponse.lastIndexOf('}');
-      
+
       if (jsonStart != -1 && jsonEnd != -1 && jsonEnd > jsonStart) {
         final jsonString = cleanedResponse.substring(jsonStart, jsonEnd + 1);
         final Map<String, dynamic> parsed = jsonDecode(jsonString);
-        
+
         // Validate and sanitize the response
         return _validateAndSanitizeResponse(parsed);
       } else {
         throw Exception('No valid JSON found in response');
       }
-      
     } catch (e) {
       debugPrint('ImageAnalysisService: JSON parsing error: $e');
       throw Exception('Failed to parse JSON response: $e');
@@ -155,7 +155,8 @@ Rules:
   }
 
   /// Validates and sanitizes the parsed response
-  Map<String, dynamic> _validateAndSanitizeResponse(Map<String, dynamic> parsed) {
+  Map<String, dynamic> _validateAndSanitizeResponse(
+      Map<String, dynamic> parsed) {
     return {
       "ripeness": _validateRipeness(parsed["ripeness"]),
       "okay_to_harvest": _validateBoolean(parsed["okay_to_harvest"]),
@@ -164,19 +165,9 @@ Rules:
       // pass through type and category if present
       "type": _validateDescription(parsed["type"]),
       "category": _validateDescription(parsed["category"]),
-      "confidence": _validateConfidence(parsed["confidence"]),
+      "confidence": parsed["confidence"],
       "not_produce": _validateBoolean(parsed["not_produce"]),
     };
-  }
-
-  String _validateConfidence(dynamic value) {
-    if (value is String) {
-      final normalized = value.trim().toLowerCase();
-      if (normalized == 'high' || normalized == 'medium' || normalized == 'low') {
-        return normalized[0].toUpperCase() + normalized.substring(1);
-      }
-    }
-    return 'Medium';
   }
 
   int _validateRipeness(dynamic value) {

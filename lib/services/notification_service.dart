@@ -144,7 +144,7 @@ class NotificationService {
       await _updateFCMToken();
 
       // Test notifications are working
-      await _testNotification();
+      // await _testNotification();
 
       _isInitialized = true;
       debugPrint('NotificationService: Initialized successfully');
@@ -1429,7 +1429,7 @@ class NotificationService {
       }
 
       // Send test notification
-      await _testNotification();
+      // await _testNotification();
       result['testNotificationSent'] = true;
 
       return result;

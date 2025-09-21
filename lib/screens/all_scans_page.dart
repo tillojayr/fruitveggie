@@ -804,6 +804,12 @@ class _AllScansPageState extends State<AllScansPage> {
                   _buildDetailRow(
                       'Category', scan['category'] ?? 'Uncategorized'),
                   _buildDetailRow('Date', _formatTimestamp(scan['timestamp'])),
+                  _buildDetailRow('Status', scan['harvestStatus'] ?? 'N/A'),
+                  _buildDetailRow(
+                      'Harvest date', _formatTimestamp(scan['harvestDate'])),
+                  if (scan.containsKey('ripeness'))
+                    _buildDetailRow('Ripeness',
+                        _formatRipeness(scan['ripeness'].toString())),
                   if (scan.containsKey('confidence'))
                     _buildDetailRow(
                         'Confidence', _formatConfidence(scan['confidence'])),
@@ -921,6 +927,20 @@ class _AllScansPageState extends State<AllScansPage> {
     } catch (e) {
       return 'Unknown';
     }
+  }
+
+  String _formatRipeness(dynamic ripeness) {
+    if (ripeness == null) return 'N/A';
+
+    if (ripeness is double) {
+      return '${ripeness.toStringAsFixed(1)}%';
+    } else if (ripeness is int) {
+      return '$ripeness%';
+    } else if (ripeness is String) {
+      return '$ripeness%';
+    }
+
+    return 'N/A';
   }
 
   String _formatConfidence(dynamic confidence) {
