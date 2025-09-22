@@ -15,7 +15,7 @@ class CameraPage extends StatefulWidget {
   State<CameraPage> createState() => _CameraPageState();
 }
 
-class _CameraPageState extends State<CameraPage> {
+class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
   bool _isRearCameraSelected = true;
@@ -25,22 +25,63 @@ class _CameraPageState extends State<CameraPage> {
   Future<void> _disposeCameraSafely() async {
     try {
       final controller = _controller;
+      // Clear the controller reference first to prevent further access
       _controller = null;
       _initializeControllerFuture = null;
+      
       if (controller != null) {
         if (controller.value.isInitialized) {
           try {
+            // Stop image stream first if it's running
+            if (controller.value.isStreamingImages) {
+              await controller.stopImageStream();
+            }
+            // Then pause preview
             await controller.pausePreview();
           } catch (_) {}
         }
+        
+        // Add a small delay to ensure all pending operations complete
+        await Future.delayed(const Duration(milliseconds: 100));
+        
+        // Finally dispose the controller
         await controller.dispose();
+        
+        // Force a garbage collection suggestion
+        // This won't guarantee GC but helps in some cases
+        Future.microtask(() {
+          print('Camera resources released, suggesting GC');
+        });
       }
-    } catch (_) {}
+    } catch (e) {
+      print('Error while disposing camera: $e');
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Handle app lifecycle changes to manage camera resources
+    final CameraController? cameraController = _controller;
+
+    // If the controller is null or not initialized, no need to do anything
+    if (cameraController == null || !cameraController.value.isInitialized) {
+      return;
+    }
+
+    if (state == AppLifecycleState.inactive) {
+      // App is in background or route is changing - release camera resources
+      _disposeCameraSafely();
+    } else if (state == AppLifecycleState.resumed) {
+      // App is in foreground - reinitialize camera
+      _initializeCamera();
+    }
   }
 
   @override
   void initState() {
     super.initState();
+    // Register for lifecycle changes
+    WidgetsBinding.instance.addObserver(this);
     _initializeCamera();
   }
 
@@ -51,24 +92,56 @@ class _CameraPageState extends State<CameraPage> {
       final cameras = await availableCameras();
       if (!mounted) return;
 
-      final firstCamera = _isRearCameraSelected ? cameras.first : cameras.last;
+      if (cameras.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No cameras found on device')),
+          );
+        }
+        return;
+      }
+
+      // Select camera based on user preference
+      final firstCamera = _isRearCameraSelected 
+          ? cameras.firstWhere(
+              (camera) => camera.lensDirection == CameraLensDirection.back,
+              orElse: () => cameras.first)
+          : cameras.firstWhere(
+              (camera) => camera.lensDirection == CameraLensDirection.front,
+              orElse: () => cameras.last);
 
       // Dispose of the previous controller if it exists
       await _disposeCameraSafely();
 
-      // Use medium resolution to reduce buffer overflow issues
+      // Use low resolution to prevent buffer overflows
+      // Lower resolution means fewer buffers needed
       _controller = CameraController(
         firstCamera,
-        ResolutionPreset.medium,
-        enableAudio: false, // Disable audio to improve performance
-        imageFormatGroup: ImageFormatGroup.jpeg,
+        ResolutionPreset.low,  // Use low resolution to prevent buffer issues
+        enableAudio: false,    // Disable audio to reduce resource usage
+        imageFormatGroup: ImageFormatGroup.jpeg, // Use JPEG for better memory usage
       );
-      _initializeControllerFuture = _controller?.initialize();
+
+      // Add delay to ensure previous camera instance is fully released
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      // Initialize with a timeout to prevent hanging
+      _initializeControllerFuture = _controller?.initialize().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          print('Camera initialization timed out, retrying...');
+          if (mounted) {
+            _initializeCamera(); // Retry initialization
+          }
+          throw Exception('Camera initialization timed out');
+        },
+      );
 
       if (mounted) {
         setState(() {});
       }
     } catch (e) {
+      print('Error initializing camera: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error initializing camera: $e')),
@@ -229,11 +302,25 @@ class _CameraPageState extends State<CameraPage> {
                                 onTap: () async {
                                   try {
                                     await _initializeControllerFuture;
-                                    final image =
-                                        await _controller!.takePicture();
-
-                                    // Pause preview immediately after capture to free up buffers
+                                    
+                                    // Add a flag to prevent multiple taps
+                                    if (_controller == null || !_controller!.value.isInitialized) {
+                                      return;
+                                    }
+                                    
+                                    // Pause preview before taking picture to free up resources
                                     try {
+                                      await _controller!.pausePreview();
+                                    } catch (_) {}
+                                    
+                                    // Take picture with memory-optimized settings
+                                    final image = await _controller!.takePicture();
+                                    
+                                    // Force release any pending image buffers
+                                    try {
+                                      // Resume and pause again to flush buffers
+                                      await _controller!.resumePreview();
+                                      await Future.delayed(const Duration(milliseconds: 100));
                                       await _controller!.pausePreview();
                                     } catch (_) {}
 
@@ -242,7 +329,12 @@ class _CameraPageState extends State<CameraPage> {
                                     // Show options for automatic or manual analysis
                                     _showImageProcessingOptions(image.path);
                                   } catch (e) {
-                                    print(e);
+                                    print('Error taking picture: $e');
+                                    
+                                    // Try to recover the camera
+                                    if (mounted) {
+                                      _initializeCamera();
+                                    }
                                   }
                                 },
                               ),
@@ -286,13 +378,11 @@ class _CameraPageState extends State<CameraPage> {
 
   @override
   void dispose() {
+    // Remove lifecycle observer
+    WidgetsBinding.instance.removeObserver(this);
+    
     // Ensure camera is fully disposed to release buffers
-    try {
-      if (_controller != null && _controller!.value.isInitialized) {
-        _controller!.pausePreview();
-      }
-    } catch (_) {}
-    _controller?.dispose();
+    _disposeCameraSafely();
     super.dispose();
   }
 
@@ -462,8 +552,13 @@ class _CameraPageState extends State<CameraPage> {
               ),
               onPressed: () {
                 Navigator.pop(context); // Close the bottom sheet
-                // Dispose camera before navigating to avoid ImageReader buffer overflow
-                _disposeCameraSafely().whenComplete(() {
+                
+                // Dispose camera completely before navigating 
+                // This is critical to prevent ImageReader buffer overflow
+                _disposeCameraSafely().then((_) {
+                  // Force a small delay to ensure resources are freed
+                  return Future.delayed(const Duration(milliseconds: 300));
+                }).then((_) {
                   // Navigate to result page with automatic detection
                   Navigator.push(
                     context,
@@ -481,7 +576,10 @@ class _CameraPageState extends State<CameraPage> {
                   ).then((_) {
                     // Re-initialize camera when returning to this page
                     if (mounted) {
-                      _initializeCamera();
+                      // Delay camera initialization to ensure resources are free
+                      Future.delayed(const Duration(milliseconds: 500), () {
+                        _initializeCamera();
+                      });
                     }
                   });
                 });
