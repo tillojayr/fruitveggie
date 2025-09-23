@@ -219,6 +219,7 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
           throw TimeoutException('Analysis timed out after 60 seconds');
         });
 
+        debugPrint('Image analysis completed with results: $results');
         // Convert the new service response to the expected format
         results = _convertImageAnalysisResponse(results);
 
@@ -4719,19 +4720,19 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
         harvestStatus.toLowerCase().contains('not ready');
 
     // Only proceed if the crop is not ready for harvest
-    if (isReady || isOverripe) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-                'Only crops not ready for harvest can be saved for monitoring.'),
-            behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.orange,
-          ),
-        );
-      }
-      return;
-    }
+    // if (isReady || isOverripe) {
+    //   if (mounted) {
+    //     ScaffoldMessenger.of(context).showSnackBar(
+    //       const SnackBar(
+    //         content: Text(
+    //             'Only crops not ready for harvest can be saved for monitoring.'),
+    //         behavior: SnackBarBehavior.floating,
+    //         backgroundColor: Colors.orange,
+    //       ),
+    //     );
+    //   }
+    //   return;
+    // }
 
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -4808,24 +4809,28 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
 
       // Use the actual harvest status from the analysis instead of forcing "unripe"
       String statusToSave = isNotReady ? 'unripe' : 'not_ready';
+      final double confidence = int.parse(results['confidence_level']) / 100;
 
       debugPrint('Determined status to save: $results');
       debugPrint('Determined status to save: $_parsedResults');
       // Prepare data to save
+      debugPrint('Preparing to save scan data for user ${results}');
+      debugPrint('Confidence level: $confidence');
       final data = {
-        'name': _detectedType,
-        'category': _parsedResults['Category'] ?? 'Unknown',
+        'name': results['Type'] ?? _detectedType,
+        'category': results['detected_category'] ?? 'Unknown',
         'imagePath': widget.imagePath,
         'imageBase64': imageBase64, // Add base64 encoded image data
-        'confidence': results['confidence'] ?? 100 / 100.0,
-        'harvestStatus': statusToSave,
-        'daysUntilHarvest': daysUntilHarvest,
+        'confidence': confidence,
+        'harvestStatus': results['ripeness_status'] ?? statusToSave,
+        'daysUntilHarvest': results['days_until_harvest'] ?? daysUntilHarvest,
         'timestamp': FieldValue.serverTimestamp(),
         'hasAnalysis': true,
         'ripeness': results['ripeness'] ?? 'unknown',
         'harvestDate': Timestamp.fromDate(
           DateTime.now().add(Duration(days: daysUntilHarvest)),
         ),
+        'detailedAnalysis': results['detailed_analysis'] ?? '',
       };
 
       debugPrint(

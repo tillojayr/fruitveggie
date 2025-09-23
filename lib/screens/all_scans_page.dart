@@ -813,6 +813,9 @@ class _AllScansPageState extends State<AllScansPage> {
                   if (scan.containsKey('confidence'))
                     _buildDetailRow(
                         'Confidence', _formatConfidence(scan['confidence'])),
+                  if (scan.containsKey('detailedAnalysis'))
+                    _buildDetailRow(
+                        'Analysis', scan['detailedAnalysis'] ?? 'N/A'),
                   if (scan.containsKey('final_prediction') ||
                       scan.containsKey('gemini_prediction'))
                     _buildDetailRow(

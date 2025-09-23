@@ -1218,6 +1218,7 @@ class _DashboardPageState extends State<DashboardPage>
     final String status = scan['harvestStatus'] ?? 'Unknown';
     final String harvestDate = _formatTimestamp(scan['harvestDate']);
     final String ripeness = _formatRipeness(scan['ripeness'] ?? 'Unknown');
+    final String analysis = scan['detailedAnalysis'] ?? 'No analysis available';
 
     showDialog(
       context: context,
@@ -1287,7 +1288,7 @@ class _DashboardPageState extends State<DashboardPage>
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Ripeness: $ripeness%',
+                            'Ripeness: $ripeness',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey.shade700,
@@ -1296,6 +1297,14 @@ class _DashboardPageState extends State<DashboardPage>
                           const SizedBox(height: 4),
                           Text(
                             'Confidence: $confidence',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Analysis: $analysis',
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey.shade700,
@@ -4284,24 +4293,24 @@ class _DashboardPageState extends State<DashboardPage>
                 const SizedBox(height: 20),
 
                 // Setup reminder button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      _showHarvestReminderDialog(context);
-                    },
-                    icon: const Icon(Icons.notifications_active),
-                    label: const Text('Setup Harvest Reminders'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFE65100),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                  ),
-                ),
+                // SizedBox(
+                //   width: double.infinity,
+                //   child: ElevatedButton.icon(
+                //     onPressed: () {
+                //       _showHarvestReminderDialog(context);
+                //     },
+                //     icon: const Icon(Icons.notifications_active),
+                //     label: const Text('Setup Harvest Reminders'),
+                //     style: ElevatedButton.styleFrom(
+                //       backgroundColor: const Color(0xFFE65100),
+                //       foregroundColor: Colors.white,
+                //       padding: const EdgeInsets.symmetric(vertical: 15),
+                //       shape: RoundedRectangleBorder(
+                //         borderRadius: BorderRadius.circular(30),
+                //       ),
+                //     ),
+                //   ),
+                // ),
 
                 const SizedBox(
                     height:
@@ -4682,9 +4691,10 @@ class _DashboardPageState extends State<DashboardPage>
         }
       }
 
+      debugPrint('days until harvest raw: ${scanData['daysUntilHarvest']}');
       // Normalize days_until_harvest
-      if (scanData.containsKey('days_until_harvest')) {
-        final daysValue = scanData['days_until_harvest'];
+      if (scanData.containsKey('daysUntilHarvest')) {
+        final daysValue = scanData['daysUntilHarvest'];
 
         // Handle different data types for days_until_harvest
         if (daysValue is int) {
@@ -4875,7 +4885,7 @@ class _DashboardPageState extends State<DashboardPage>
                   Padding(
                     padding: const EdgeInsets.only(top: 10),
                     child: Text(
-                      'Confidence: ${scanData['confidence']}',
+                      'Confidence: ${scanData['confidence'] is double ? (scanData['confidence'] * 100).toStringAsFixed(1) + '%' : scanData['confidence'].toString()}',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey[600],
@@ -5336,6 +5346,7 @@ class _DashboardPageState extends State<DashboardPage>
   // Helper method to schedule a reminder from scan data
   Future<void> _scheduleReminderFromScan(Map<String, dynamic> scan) async {
     try {
+      debugPrint('Scheduling reminder from scan: $scan');
       // Check if we have all required data
       final String? scanId = scan['scanId'];
       final String? produceType = scan['name'];
@@ -5397,8 +5408,8 @@ class _DashboardPageState extends State<DashboardPage>
         daysUntilHarvest = 0;
       } else {
         // If not ready, check for explicit days_until_harvest field
-        if (scan.containsKey('days_until_harvest')) {
-          final daysValue = scan['days_until_harvest'];
+        if (scan.containsKey('daysUntilHarvest')) {
+          final daysValue = scan['daysUntilHarvest'];
 
           // Handle different data types for days_until_harvest
           if (daysValue is int) {
@@ -5759,6 +5770,7 @@ class _DashboardPageState extends State<DashboardPage>
         ? DateFormat('MMM dd, yyyy').format(harvestDate.toDate())
         : 'Unknown date';
 
+    debugPrint('Reminder produce type: $harvestDate');
     // Generate a unique key for this reminder
     final String reminderKey = '${reminderId}_${produceType}_$formattedDate';
 
@@ -5840,6 +5852,8 @@ class _DashboardPageState extends State<DashboardPage>
     // Calculate difference in days
     final difference = normalizedHarvestDate.difference(normalizedNow).inDays;
 
+    debugPrint('Harvest date: $harvestDate');
+    debugPrint('Days until harvest: $difference');
     Color textColor;
     String text;
 
@@ -5863,6 +5877,8 @@ class _DashboardPageState extends State<DashboardPage>
       }
       text = '$difference days remaining';
     }
+
+    debugPrint('Days remaining text: $text with color $textColor');
 
     return Text(
       text,
