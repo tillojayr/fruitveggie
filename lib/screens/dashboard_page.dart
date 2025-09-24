@@ -18,6 +18,7 @@ import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'all_scans_page.dart';
 import 'all_harvests_page.dart';
+import 'chart_page.dart'; // Add import for chart page
 import '../utils/custom_route.dart'; // Add import for custom slide animation
 import 'login_page.dart';
 // Add import for AppTheme
@@ -3643,6 +3644,7 @@ class _DashboardPageState extends State<DashboardPage>
             ), // Camera page - already implemented
             _buildWeatherPage(), // Weather page - replacing Track page
             _buildHarvestPage(), // Harvest page
+            _buildChartPage(), // Chart page - new addition
           ],
         ),
         bottomNavigationBar: Container(
@@ -3711,6 +3713,10 @@ class _DashboardPageState extends State<DashboardPage>
                 BottomNavigationBarItem(
                   icon: _buildNavBarIcon(_features[2]['icon'], 3),
                   label: 'Harvest',
+                ),
+                BottomNavigationBarItem(
+                  icon: _buildNavBarIcon(Icons.bar_chart_rounded, 4),
+                  label: 'Chart',
                 ),
               ],
             ),
@@ -6659,5 +6665,12 @@ class _DashboardPageState extends State<DashboardPage>
 
     // Return fallback days if provided, otherwise default to 10 days
     return fallbackDays ?? 10;
+  }
+  
+  // Build the chart page
+  Widget _buildChartPage() {
+    return ChartPage(
+      onRefresh: refreshDashboardData,
+    );
   }
 }
