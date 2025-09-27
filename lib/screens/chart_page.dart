@@ -7,9 +7,9 @@ import 'dart:async';
 
 class ChartPage extends StatefulWidget {
   final Function() onRefresh;
-  
+
   const ChartPage({
-    super.key, 
+    super.key,
     required this.onRefresh,
   });
 
@@ -28,55 +28,57 @@ class _ChartPageState extends State<ChartPage> {
     const Color(0xFFFF9800), // Orange
     const Color(0xFFE65100), // Deep Orange
   ];
-  
+
   @override
   void initState() {
     super.initState();
     _fetchCropHarvestData();
   }
-  
+
   Future<void> _fetchCropHarvestData() async {
     setState(() {
       _isLoading = true;
     });
-    
+
     try {
       final currentUser = FirebaseAuth.instance.currentUser;
       final userId = currentUser?.uid;
-      
+
       if (userId != null) {
         // Get all scans from Firestore
         final QuerySnapshot result = await FirebaseFirestore.instance
             .collection('users')
             .doc(userId)
-            .collection('scans')
-            .orderBy('timestamp', descending: true)
+            .collection('reminders')
+            .where('isDismissed', isEqualTo: false)
             .get();
-        
+
         if (result.docs.isNotEmpty) {
           Map<String, int> cropDaysMap = {};
           Map<String, int> cropCountMap = {};
-          
+
+          debugPrint('Data fetched: ${result.docs.length} scans');
           for (var doc in result.docs) {
             final scanData = doc.data() as Map<String, dynamic>;
-            
-            // Extract produce name and days until harvest
-            String produceName = _getProduceName(scanData);
+
+            String produceName = scanData['produceType'];
             int daysUntilHarvest = _getDaysUntilHarvest(scanData);
-            
-            if (produceName.isNotEmpty) {
-              // Calculate running average for each crop type
-              if (cropDaysMap.containsKey(produceName)) {
-                int currentTotal = cropDaysMap[produceName]! * cropCountMap[produceName]!;
-                cropCountMap[produceName] = cropCountMap[produceName]! + 1;
-                cropDaysMap[produceName] = ((currentTotal + daysUntilHarvest) / cropCountMap[produceName]!).round();
-              } else {
-                cropDaysMap[produceName] = daysUntilHarvest;
-                cropCountMap[produceName] = 1;
-              }
+
+            // Start with the original name
+            String key = produceName;
+            int counter = 2;
+
+            // If the key already exists, keep trying with #2, #3, ...
+            while (cropDaysMap.containsKey(key)) {
+              key = '$produceName#$counter';
+              counter++;
             }
+
+            cropDaysMap[key] = daysUntilHarvest + 1;
           }
-          
+
+          debugPrint('Initial crop days map: $cropDaysMap');
+          debugPrint('Processed crop days map: $cropDaysMap');
           setState(() {
             _cropHarvestDays = cropDaysMap;
             _isLoading = false;
@@ -95,7 +97,7 @@ class _ChartPageState extends State<ChartPage> {
       });
     }
   }
-  
+
   String _getProduceName(Map<String, dynamic> scanData) {
     // Try different fields that might contain the produce name
     if (scanData.containsKey('name')) {
@@ -105,104 +107,38 @@ class _ChartPageState extends State<ChartPage> {
     } else if (scanData.containsKey('produceType')) {
       return _capitalizeFirstLetter(scanData['produceType'].toString());
     } else if (scanData.containsKey('Fruit or Vegetable Type')) {
-      return _capitalizeFirstLetter(scanData['Fruit or Vegetable Type'].toString());
+      return _capitalizeFirstLetter(
+          scanData['Fruit or Vegetable Type'].toString());
     }
     return '';
   }
-  
+
   String _capitalizeFirstLetter(String text) {
     if (text.isEmpty) return '';
     return text[0].toUpperCase() + text.substring(1).toLowerCase();
   }
-  
+
   int _getDaysUntilHarvest(Map<String, dynamic>? scanData) {
-    if (scanData == null) return 7; // Default for sorting purposes
+    final now = DateTime.now();
+    final harvestData = scanData?['harvestDate'];
 
-    // If it's ready for harvest, return 0 days
-    if (_isReadyForHarvest(scanData)) return 0;
-
-    // Check for overripe status
-    if (scanData.containsKey('harvestStatus')) {
-      final status = scanData['harvestStatus'].toString().toLowerCase();
-      if (status == 'overripe' || status.contains('over')) {
-        return 0; // For chart purposes, show 0 days for overripe
+    if (harvestData is Timestamp) {
+      final harvestDate = harvestData.toDate();
+      return harvestDate.difference(now).inDays;
+    } else if (harvestData is DateTime) {
+      return harvestData.difference(now).inDays;
+    } else if (harvestData is String) {
+      try {
+        final parsedDate = DateTime.parse(harvestData);
+        return parsedDate.difference(now).inDays;
+      } catch (e) {
+        print('Error parsing harvest date string: $e');
+        return 0; // Default to 0 days if parsing fails
       }
     }
-    
-    if (scanData.containsKey('Ready for Harvest')) {
-      final status = scanData['Ready for Harvest'].toString().toLowerCase();
-      if (status == 'overripe' || status.contains('over')) {
-        return 0;
-      }
-    }
-
-    // Check if there's an explicit days_until_harvest field
-    if (scanData.containsKey('days_until_harvest')) {
-      final daysValue = scanData['days_until_harvest'];
-
-      // Handle different types
-      if (daysValue is int) {
-        return daysValue;
-      } else if (daysValue is double) {
-        return daysValue.round();
-      } else if (daysValue is String && daysValue.isNotEmpty) {
-        try {
-          return int.parse(daysValue);
-        } catch (e) {
-          // Fall through to default
-        }
-      }
-    }
-    
-    // Also check the daysUntilHarvest field (camel case version)
-    if (scanData.containsKey('daysUntilHarvest')) {
-      final daysValue = scanData['daysUntilHarvest'];
-
-      // Handle different types
-      if (daysValue is int) {
-        return daysValue;
-      } else if (daysValue is double) {
-        return daysValue.round();
-      } else if (daysValue is String && daysValue.isNotEmpty) {
-        try {
-          return int.parse(daysValue);
-        } catch (e) {
-          // Fall through to default
-        }
-      }
-    }
-
-    // Use produce type and characteristics to make a better estimate
-    if (scanData.containsKey('name') && scanData.containsKey('Color')) {
-      final type = (scanData['name'] ?? '').toString().toLowerCase();
-      final color = (scanData['Color'] ?? '').toString().toLowerCase();
-
-      // Use improved produce-specific estimates
-      if (type.contains('banana')) {
-        if (color.contains('green')) return 7;
-        if (color.contains('yellow') && color.contains('green')) return 3;
-        return 4;
-      } else if (type.contains('tomato')) {
-        if (color.contains('green')) return 10;
-        if (color.contains('orange') || color.contains('light red')) return 3;
-        return 5;
-      } else if (type.contains('apple')) {
-        if (color.contains('green') && !type.contains('granny')) return 10;
-        return 7;
-      } else if (type.contains('avocado')) {
-        if (color.contains('green')) return 8;
-        return 3;
-      } else if (type.contains('mango')) {
-        if (color.contains('green')) return 10;
-        if (color.contains('yellow') && color.contains('green')) return 5;
-        return 4;
-      }
-    }
-
-    // Default value if no specific days information
-    return 7;
+    return 0; // Default to 0 days if no valid harvest date is found
   }
-  
+
   bool _isReadyForHarvest(Map<String, dynamic> scanData) {
     // Check harvestStatus field (preferred format)
     if (scanData.containsKey('harvestStatus')) {
@@ -251,7 +187,7 @@ class _ChartPageState extends State<ChartPage> {
     await _fetchCropHarvestData();
     widget.onRefresh();
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -259,23 +195,24 @@ class _ChartPageState extends State<ChartPage> {
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         child: Container(
-          padding: const EdgeInsets.only(bottom: 100), // Space for bottom nav bar
+          padding:
+              const EdgeInsets.only(bottom: 100), // Space for bottom nav bar
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(),
-              _isLoading 
-                ? _buildLoadingIndicator() 
-                : _cropHarvestDays.isEmpty 
-                  ? _buildEmptyState()
-                  : _buildChartContent(),
+              _isLoading
+                  ? _buildLoadingIndicator()
+                  : _cropHarvestDays.isEmpty
+                      ? _buildEmptyState()
+                      : _buildChartContent(),
             ],
           ),
         ),
       ),
     );
   }
-  
+
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -328,7 +265,7 @@ class _ChartPageState extends State<ChartPage> {
       ),
     );
   }
-  
+
   Widget _buildLoadingIndicator() {
     return Container(
       height: 400,
@@ -340,7 +277,7 @@ class _ChartPageState extends State<ChartPage> {
       ),
     );
   }
-  
+
   Widget _buildEmptyState() {
     return SizedBox(
       height: 400,
@@ -396,7 +333,7 @@ class _ChartPageState extends State<ChartPage> {
       ),
     );
   }
-  
+
   Widget _buildChartContent() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -435,7 +372,8 @@ class _ChartPageState extends State<ChartPage> {
   Widget _buildBarChart() {
     final entries = _cropHarvestDays.entries.toList()
       ..sort((a, b) => a.value.compareTo(b.value));
-    
+
+    debugPrint('Building chart with ${entries.length} entries');
     return Container(
       height: 300,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -522,7 +460,8 @@ class _ChartPageState extends State<ChartPage> {
                     gradient: LinearGradient(
                       colors: [
                         _getColorForValue(entry.value.toDouble()),
-                        _getColorForValue(entry.value.toDouble()).withOpacity(0.6),
+                        _getColorForValue(entry.value.toDouble())
+                            .withOpacity(0.6),
                       ],
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
@@ -547,17 +486,17 @@ class _ChartPageState extends State<ChartPage> {
       ),
     );
   }
-  
+
   double _getMaxY() {
     if (_cropHarvestDays.isEmpty) return 10.0;
-    
+
     final maxValue = _cropHarvestDays.values
         .reduce((curr, next) => curr > next ? curr : next);
-        
+
     // Return max value rounded up to next integer plus some padding
     return (maxValue + 2).toDouble();
   }
-  
+
   Color _getColorForValue(double value) {
     if (value <= 0) return const Color(0xFFE65100); // Overripe or Ready
     if (value <= 3) return const Color(0xFFFF9800); // Very Soon
@@ -566,7 +505,7 @@ class _ChartPageState extends State<ChartPage> {
     if (value <= 10) return const Color(0xFF4CAF50); // Further
     return const Color(0xFF2E7D32); // Far
   }
-  
+
   Widget _buildLegend() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -598,7 +537,7 @@ class _ChartPageState extends State<ChartPage> {
       ),
     );
   }
-  
+
   Widget _buildLegendItem(String label, Color color) {
     return Row(
       mainAxisSize: MainAxisSize.min,

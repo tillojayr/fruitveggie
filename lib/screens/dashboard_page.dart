@@ -5619,6 +5619,34 @@ class _DashboardPageState extends State<DashboardPage>
   // Add a method to load active reminders
   Future<void> _loadActiveReminders() async {
     try {
+      // Update reminders if harvest date past current date
+      final now = DateTime.now();
+
+      final currentUser = _authService.currentUser;
+      final userId = currentUser?.uid;
+
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .collection('reminders')
+          .where('harvestDate', isLessThanOrEqualTo: now)
+          .get();
+
+      debugPrint('Found ${querySnapshot.docs.length} reminders to update');
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final Timestamp? harvestTimestamp = data['harvestDate'] as Timestamp?;
+        final bool isDismissed = data['isDismissed'] == true;
+
+        if (harvestTimestamp != null && !isDismissed) {
+          final harvestDate = harvestTimestamp.toDate();
+          if (harvestDate.isBefore(DateTime(now.year, now.month, now.day))) {
+            // Update isDismissed to true
+            await doc.reference.update({'isDismissed': true});
+          }
+        }
+      }
+
       setState(() {
         _isLoading = true;
       });
@@ -6666,7 +6694,7 @@ class _DashboardPageState extends State<DashboardPage>
     // Return fallback days if provided, otherwise default to 10 days
     return fallbackDays ?? 10;
   }
-  
+
   // Build the chart page
   Widget _buildChartPage() {
     return ChartPage(
