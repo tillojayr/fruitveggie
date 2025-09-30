@@ -4697,7 +4697,7 @@ class _DashboardPageState extends State<DashboardPage>
         }
       }
 
-      debugPrint('days until harvest raw: ${scanData['daysUntilHarvest']}');
+      // debugPrint('days until harvest raw: ${scanData['daysUntilHarvest']}');
       // Normalize days_until_harvest
       if (scanData.containsKey('daysUntilHarvest')) {
         final daysValue = scanData['daysUntilHarvest'];
@@ -5133,7 +5133,7 @@ class _DashboardPageState extends State<DashboardPage>
 
           // Skip if we already processed this produce type
           if (processedProduceTypes.contains(produceType)) {
-            debugPrint('Skipping duplicate reminder for $produceType');
+            // debugPrint('Skipping duplicate reminder for $produceType');
             continue;
           }
 
@@ -5352,7 +5352,7 @@ class _DashboardPageState extends State<DashboardPage>
   // Helper method to schedule a reminder from scan data
   Future<void> _scheduleReminderFromScan(Map<String, dynamic> scan) async {
     try {
-      debugPrint('Scheduling reminder from scan: $scan');
+      // debugPrint('Scheduling reminder from scan: $scan');
       // Check if we have all required data
       final String? scanId = scan['scanId'];
       final String? produceType = scan['name'];
@@ -5506,9 +5506,9 @@ class _DashboardPageState extends State<DashboardPage>
         );
       }
 
-      debugPrint(isUpdatingExistingReminder
-          ? 'Updated reminder for $produceType on $formattedDate (in $daysUntilHarvest days)'
-          : 'Scheduled reminder for $produceType on $formattedDate (in $daysUntilHarvest days)');
+      // debugPrint(isUpdatingExistingReminder
+      //     ? 'Updated reminder for $produceType on $formattedDate (in $daysUntilHarvest days)'
+      //     : 'Scheduled reminder for $produceType on $formattedDate (in $daysUntilHarvest days)');
     } catch (e) {
       debugPrint('Error scheduling reminder from scan: $e');
       if (mounted) {
@@ -5632,7 +5632,7 @@ class _DashboardPageState extends State<DashboardPage>
           .where('harvestDate', isLessThanOrEqualTo: now)
           .get();
 
-      debugPrint('Found ${querySnapshot.docs.length} reminders to update');
+      // debugPrint('Found ${querySnapshot.docs.length} reminders to update');
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
         final Timestamp? harvestTimestamp = data['harvestDate'] as Timestamp?;
@@ -5804,7 +5804,7 @@ class _DashboardPageState extends State<DashboardPage>
         ? DateFormat('MMM dd, yyyy').format(harvestDate.toDate())
         : 'Unknown date';
 
-    debugPrint('Reminder produce type: $harvestDate');
+    // debugPrint('Reminder produce type: $harvestDate');
     // Generate a unique key for this reminder
     final String reminderKey = '${reminderId}_${produceType}_$formattedDate';
 
@@ -5886,8 +5886,8 @@ class _DashboardPageState extends State<DashboardPage>
     // Calculate difference in days
     final difference = normalizedHarvestDate.difference(normalizedNow).inDays;
 
-    debugPrint('Harvest date: $harvestDate');
-    debugPrint('Days until harvest: $difference');
+    // debugPrint('Harvest date: $harvestDate');
+    // debugPrint('Days until harvest: $difference');
     Color textColor;
     String text;
 
@@ -5912,7 +5912,7 @@ class _DashboardPageState extends State<DashboardPage>
       text = '$difference days remaining';
     }
 
-    debugPrint('Days remaining text: $text with color $textColor');
+    // debugPrint('Days remaining text: $text with color $textColor');
 
     return Text(
       text,
