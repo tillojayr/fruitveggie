@@ -13,13 +13,30 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:workmanager/workmanager.dart';
+
+/// WorkManager task key
+const String harvestCheckTask = "harvestCheckTask";
+
+final FlutterLocalNotificationsPlugin _localNotifications =
+    FlutterLocalNotificationsPlugin();
+
+@pragma('vm:entry-point')
+void callbackDispatcher() {
+  Workmanager().executeTask((task, inputData) async {
+    print("Background task: $task");
+    // await _testNotification();
+    await _checkHarvestReminders();
+    return Future.value(true);
+  });
+}
 
 // Better background message handler implementation
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Need to ensure Firebase is initialized here too
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  debugPrint('Handling a background message: ${message.messageId}');
+  // debugPrint('Handling a background message: ${message.messageId}');
 
   // Initialize FlutterLocalNotificationsPlugin for background messages
   FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -89,6 +106,80 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   }
 }
 
+Future<void> _testNotification() async {
+  try {
+    final androidDetails = AndroidNotificationDetails(
+      'harvest_channel',
+      'Harvest Reminders',
+      channelDescription: 'Notifications for produce harvest reminders',
+      importance: Importance.high,
+      priority: Priority.high,
+      color: const Color(0xFF2E7D32),
+      icon: '@mipmap/ic_launcher',
+    );
+
+    const iosDetails = DarwinNotificationDetails(
+      presentAlert: true,
+      presentBadge: true,
+      presentSound: true,
+    );
+
+    final details = NotificationDetails(
+      android: androidDetails,
+      iOS: iosDetails,
+    );
+
+    // Show a test notification to verify it's working
+    await _localNotifications.show(
+      0, // Use ID 0 for test notification
+      'Notification Test for bacakground',
+      'Notifications are working correctly! background',
+      details,
+    );
+
+    debugPrint('NotificationService: Test notification sent successfully');
+    return;
+  } catch (e) {
+    debugPrint('NotificationService: Failed to send test notification: $e');
+  }
+}
+
+/// Checks Firestore for crops due today and notifies
+Future<void> _checkHarvestReminders() async {
+  print('Checking harvest reminders in background task');
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+
+  final auth = FirebaseAuth.instance;
+  if (auth.currentUser == null) {
+    debugPrint('No authenticated user. Skipping harvest reminder check.');
+    return;
+  }
+
+  final reminders = await FirebaseFirestore.instance
+      .collection('users')
+      .doc(auth.currentUser!.uid)
+      .collection('reminders')
+      .where('isDismissed', isEqualTo: false)
+      .get();
+
+  print('Checking ${reminders.docs.length} reminders for today\'s harvests');
+  for (var doc in reminders.docs) {
+    final data = doc.data();
+    if (data.containsKey('harvestDate')) {
+      final harvestDate = (data['harvestDate'] as Timestamp).toDate();
+      final normalizedHarvestDate =
+          DateTime(harvestDate.year, harvestDate.month, harvestDate.day);
+
+      debugPrint('Today: $today, Harvest Date: $normalizedHarvestDate');
+      if (normalizedHarvestDate == today) {
+        await _testNotification();
+      }
+    }
+  }
+}
+
 void main() async {
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
@@ -131,6 +222,28 @@ void main() async {
       debugPrint('Auth state change error: $error');
     });
 
+    DateTime now = DateTime.now();
+    DateTime next8AM = DateTime(now.year, now.month, now.day, 8, 0, 0);
+
+    if (now.isAfter(next8AM)) {
+      next8AM = next8AM.add(Duration(days: 1));
+    }
+    Duration initialDelay = next8AM.difference(now);
+
+    // Setup WorkManager
+    Workmanager().initialize(
+      callbackDispatcher,
+    );
+
+    // Register background task
+    Workmanager().registerPeriodicTask(
+      "task-id",
+      harvestCheckTask,
+      frequency: Duration(hours: 24), // repeat interval
+      initialDelay: initialDelay, // only affects first run
+    );
+
+    debugPrint('WorkManager initialized and task registered');
     // Initialize notification service
     try {
       debugPrint('Initializing notification service...');
