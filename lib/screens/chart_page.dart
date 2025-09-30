@@ -4,6 +4,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
+import 'dart:io';
+import '../services/pdf_service.dart';
+import 'dart:io';
+import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
   final Function() onRefresh;
@@ -19,6 +23,7 @@ class ChartPage extends StatefulWidget {
 
 class _ChartPageState extends State<ChartPage> {
   bool _isLoading = true;
+  bool _isExporting = false;
   Map<String, int> _cropHarvestDays = {};
   List<Color> gradientColors = [
     const Color(0xFF2E7D32), // Dark Green
@@ -28,6 +33,7 @@ class _ChartPageState extends State<ChartPage> {
     const Color(0xFFFF9800), // Orange
     const Color(0xFFE65100), // Deep Orange
   ];
+  final PdfService _pdfService = PdfService();
 
   @override
   void initState() {
@@ -190,14 +196,16 @@ class _ChartPageState extends State<ChartPage> {
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: _refreshData,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        child: Container(
-          padding:
-              const EdgeInsets.only(bottom: 100), // Space for bottom nav bar
-          child: Column(
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _refreshData,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Container(
+              padding:
+                  const EdgeInsets.only(bottom: 100), // Space for bottom nav bar
+              child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(),
@@ -245,9 +253,19 @@ class _ChartPageState extends State<ChartPage> {
                     color: Colors.white,
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.white),
-                  onPressed: _refreshData,
+                Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+                      onPressed: _cropHarvestDays.isEmpty ? null : _exportToPdf,
+                      tooltip: 'Export to PDF',
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh, color: Colors.white),
+                      onPressed: _refreshData,
+                      tooltip: 'Refresh Data',
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -275,6 +293,92 @@ class _ChartPageState extends State<ChartPage> {
           valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
         ),
       ),
+    );
+  }
+  
+  Future<void> _exportToPdf() async {
+    if (_cropHarvestDays.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No data available to export')),
+      );
+      return;
+    }
+
+    setState(() {
+      _isExporting = true;
+    });
+
+    try {
+      final File? pdfFile = await _pdfService.generateHarvestChartPdf(
+        cropHarvestDays: _cropHarvestDays,
+        title: 'Harvest Chart Report',
+        description: 'Estimated days until harvest based on your scans.',
+      );
+
+      if (pdfFile != null) {
+        // Show options dialog after PDF is generated
+        if (mounted) {
+          _showPdfOptionsDialog(pdfFile);
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Failed to generate PDF')),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Error exporting to PDF: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isExporting = false;
+        });
+      }
+    }
+  }
+
+  void _showPdfOptionsDialog(File pdfFile) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('PDF Generated'),
+          content: const Text('What would you like to do with the PDF?'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _pdfService.openPdf(pdfFile);
+              },
+              child: const Text('View'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _pdfService.printPdf(pdfFile);
+              },
+              child: const Text('Print'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _pdfService.sharePdf(pdfFile);
+              },
+              child: const Text('Share'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 

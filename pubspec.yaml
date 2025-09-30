@@ -58,6 +58,10 @@ dependencies:
   back_button_interceptor: ^8.0.4
   geocoding: ^4.0.0
   shared_preferences: ^2.2.3
+  pdf: ^3.10.7
+  printing: ^5.11.1
+  open_file: ^3.3.2
+  path_provider: ^2.1.1
 
 dev_dependencies:
   flutter_test:
