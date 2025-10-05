@@ -11,10 +11,13 @@ import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
   final Function() onRefresh;
+  // Optional callback to request navigation to the camera tab in the parent
+  final VoidCallback? onNavigateToCamera;
 
   const ChartPage({
     super.key,
     required this.onRefresh,
+    this.onNavigateToCamera,
   });
 
   @override
@@ -203,21 +206,23 @@ class _ChartPageState extends State<ChartPage> {
           child: SingleChildScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
             child: Container(
-              padding:
-                  const EdgeInsets.only(bottom: 100), // Space for bottom nav bar
+              padding: const EdgeInsets.only(
+                  bottom: 100), // Space for bottom nav bar
               child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildHeader(),
-              _isLoading
-                  ? _buildLoadingIndicator()
-                  : _cropHarvestDays.isEmpty
-                      ? _buildEmptyState()
-                      : _buildChartContent(),
-            ],
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  _isLoading
+                      ? _buildLoadingIndicator()
+                      : _cropHarvestDays.isEmpty
+                          ? _buildEmptyState()
+                          : _buildChartContent(),
+                ],
+              ),
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -256,7 +261,8 @@ class _ChartPageState extends State<ChartPage> {
                 Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
+                      icon:
+                          const Icon(Icons.picture_as_pdf, color: Colors.white),
                       onPressed: _cropHarvestDays.isEmpty ? null : _exportToPdf,
                       tooltip: 'Export to PDF',
                     ),
@@ -295,7 +301,7 @@ class _ChartPageState extends State<ChartPage> {
       ),
     );
   }
-  
+
   Future<void> _exportToPdf() async {
     if (_cropHarvestDays.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -415,10 +421,13 @@ class _ChartPageState extends State<ChartPage> {
             const SizedBox(height: 40),
             ElevatedButton.icon(
               onPressed: () {
-                // Navigate to camera
-                Navigator.of(context).pop();
-                // Using a callback to notify the parent to navigate to camera page
-                // This will be handled in dashboard_page.dart
+                // If a callback is provided by the parent, use it to request
+                // navigation to the camera tab. Otherwise, just pop.
+                if (widget.onNavigateToCamera != null) {
+                  widget.onNavigateToCamera!();
+                } else {
+                  Navigator.of(context).pop();
+                }
               },
               icon: const Icon(Icons.camera_alt),
               label: const Text('Start Scanning'),

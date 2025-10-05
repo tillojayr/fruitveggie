@@ -6699,6 +6699,12 @@ class _DashboardPageState extends State<DashboardPage>
   Widget _buildChartPage() {
     return ChartPage(
       onRefresh: refreshDashboardData,
+      onNavigateToCamera: () {
+        // Navigate to camera tab in the dashboard
+        setState(() {
+          _selectedIndex = 1; // Navigate to camera
+        });
+      },
     );
   }
 }

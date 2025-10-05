@@ -14,6 +14,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
+import 'services/sms_service.dart';
 
 /// WorkManager task key
 const String harvestCheckTask = "harvestCheckTask";
@@ -25,27 +26,29 @@ final FlutterLocalNotificationsPlugin _localNotifications =
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     print("Background task executing: $task");
-    
+
     // Initialize Firebase
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    
+    await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform);
+
     // Initialize timezone data
     tz.initializeTimeZones();
-    
+
     // Initialize notification plugin
-    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = 
+    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
         FlutterLocalNotificationsPlugin();
-    
+
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
-        
+
     const DarwinInitializationSettings initializationSettingsIOS =
         DarwinInitializationSettings();
-        
-    const InitializationSettings initializationSettings = InitializationSettings(
-        android: initializationSettingsAndroid,
-        iOS: initializationSettingsIOS);
-        
+
+    const InitializationSettings initializationSettings =
+        InitializationSettings(
+            android: initializationSettingsAndroid,
+            iOS: initializationSettingsIOS);
+
     await flutterLocalNotificationsPlugin.initialize(initializationSettings);
 
     // Create Android notification channel
@@ -56,9 +59,10 @@ void callbackDispatcher() {
         description: 'Notifications for produce harvest reminders',
         importance: Importance.high,
       );
-      
+
       await flutterLocalNotificationsPlugin
-          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
           ?.createNotificationChannel(channel);
     }
 
@@ -70,7 +74,7 @@ void callbackDispatcher() {
       print("Error in background harvest check: $e");
       // Even if we get an error, we should return success so the task gets rescheduled
     }
-    
+
     return Future.value(true);
   });
 }
@@ -191,14 +195,16 @@ Future<void> _testNotification() async {
 /// Checks Firestore for crops due today and notifies
 Future<void> _checkHarvestReminders() async {
   print('Checking harvest reminders in background task');
-  
+
   // Ensure Firebase is initialized
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  
+
+  final smsService = await SmsService.create();
+
   // Get current user
   final auth = FirebaseAuth.instance;
   final user = auth.currentUser;
-  
+
   if (user == null) {
     debugPrint('No authenticated user. Skipping harvest reminder check.');
     return;
@@ -206,7 +212,7 @@ Future<void> _checkHarvestReminders() async {
 
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
-  
+
   try {
     // Get reminders due today or in the past 3 days
     final reminders = await FirebaseFirestore.instance
@@ -214,32 +220,33 @@ Future<void> _checkHarvestReminders() async {
         .doc(user.uid)
         .collection('reminders')
         .where('isDismissed', isEqualTo: false)
-        .where('isNotified', isEqualTo: false)
         .get();
-    
+
     print('Found ${reminders.docs.length} reminders to check');
-    
+
     // Initialize notification plugin
     final notifications = FlutterLocalNotificationsPlugin();
-    
+
     for (var doc in reminders.docs) {
       final data = doc.data();
       if (data.containsKey('harvestDate')) {
         final harvestDate = (data['harvestDate'] as Timestamp).toDate();
         final produceType = data['produceType'] as String? ?? 'Your produce';
         final scanId = data['scanId'] as String? ?? '';
-        
+
         // Normalize date for comparison (remove time component)
-        final normalizedHarvestDate = DateTime(harvestDate.year, harvestDate.month, harvestDate.day);
-        
+        final normalizedHarvestDate =
+            DateTime(harvestDate.year, harvestDate.month, harvestDate.day);
+
         // Check if today is the harvest day or it's past due
         if (normalizedHarvestDate.compareTo(today) <= 0) {
           // It's today or past - send notification
-          print('Sending notification for $produceType (due: ${normalizedHarvestDate.toString()})');
-          
+          print(
+              'Sending notification for $produceType (due: ${normalizedHarvestDate.toString()})');
+
           // Calculate notification ID consistently
           final notificationId = produceType.hashCode ^ scanId.hashCode;
-          
+
           // Send notification
           await notifications.show(
             notificationId,
@@ -249,7 +256,8 @@ Future<void> _checkHarvestReminders() async {
               android: AndroidNotificationDetails(
                 'harvest_channel',
                 'Harvest Reminders',
-                channelDescription: 'Notifications for produce harvest reminders',
+                channelDescription:
+                    'Notifications for produce harvest reminders',
                 importance: Importance.high,
                 priority: Priority.high,
               ),
@@ -260,7 +268,50 @@ Future<void> _checkHarvestReminders() async {
               ),
             ),
           );
-          
+
+          try {
+            final userDoc = await FirebaseFirestore.instance
+                .collection('users')
+                .doc(user.uid)
+                .get();
+
+            if (!userDoc.exists) {
+              debugPrint('SMS not sent: user document not found for uid $user');
+              return;
+            }
+
+            final data = userDoc.data();
+            if (data == null) {
+              debugPrint('SMS not sent: user document has no data');
+              return;
+            }
+
+            // Try common phone field names
+            final dynamic phoneField = data['phone'];
+
+            final String? phoneNumberStr = phoneField?.toString();
+            if (phoneNumberStr == null || phoneNumberStr.isEmpty) {
+              debugPrint('SMS not sent: no phone number for user $user');
+              return;
+            }
+
+            try {
+              final String message =
+                  'Reminder: Your $produceType is ready to harvest today!';
+
+              final bool sent = await smsService.sendSms(
+                message: message,
+                recipient: phoneNumberStr,
+              );
+
+              debugPrint('SMS send result for $phoneNumberStr: $sent');
+            } catch (e) {
+              debugPrint('Error creating or using SmsService: $e');
+            }
+          } catch (e) {
+            debugPrint('Error fetching user data or sending SMS: $e');
+          }
+
           // Mark as notified in Firestore
           await doc.reference.update({
             'isNotified': true,
@@ -318,11 +369,12 @@ void main() async {
 
     // Calculate initial delay to set task for 8AM
     DateTime now = DateTime.now();
-    DateTime next8AM = DateTime(now.year, now.month, now.day, 8, 0, 0);
+    DateTime next8AM = DateTime(now.year, now.month, now.day, 5, 0, 0);
 
     if (now.isAfter(next8AM)) {
       next8AM = next8AM.add(Duration(days: 1));
     }
+
     Duration initialDelay = next8AM.difference(now);
 
     // Setup WorkManager with the proper constraints

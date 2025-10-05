@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fruitveggie/services/sms_service.dart';
 import 'dart:io';
 import 'dart:async'; // Add import for TimeoutException
 import 'dart:math' show pi, sin; // Add import for pi and sin functions
@@ -250,6 +251,66 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
     final int confidencePercent = response['confidence'] ?? 90;
     final bool notProduce = response['not_produce'] == true;
 
+    // If AI indicates it's okay to harvest, fetch the current user's phone from
+    // Firestore and send an SMS notification in the background. We do this
+    // asynchronously (fire-and-forget) so we don't change this function's
+    // synchronous return type or block the UI.
+    if (okayToHarvest == true) {
+      (() async {
+        try {
+          final uid = FirebaseAuth.instance.currentUser?.uid;
+          if (uid == null) {
+            debugPrint('SMS not sent: no authenticated user');
+            return;
+          }
+
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(uid)
+              .get();
+
+          if (!userDoc.exists) {
+            debugPrint('SMS not sent: user document not found for uid $uid');
+            return;
+          }
+
+          final data = userDoc.data();
+          if (data == null) {
+            debugPrint('SMS not sent: user document has no data');
+            return;
+          }
+
+          // Try common phone field names
+          final dynamic phoneField = data['phone'];
+
+          final String? phoneNumberStr = phoneField?.toString();
+          if (phoneNumberStr == null || phoneNumberStr.isEmpty) {
+            debugPrint('SMS not sent: no phone number for user $uid');
+            return;
+          }
+
+          try {
+            final smsService = await SmsService.create();
+            final String produceName = aiType.isNotEmpty
+                ? aiType
+                : (response['produce_type'] ?? 'your produce').toString();
+            final String message =
+                'Good news — your $produceName appears ready to harvest now. Ripeness: ${ripeness.toString()}%.';
+
+            final bool sent = await smsService.sendSms(
+              message: message,
+              recipient: phoneNumberStr,
+            );
+
+            debugPrint('SMS send result for $phoneNumberStr: $sent');
+          } catch (e) {
+            debugPrint('Error creating or using SmsService: $e');
+          }
+        } catch (e) {
+          debugPrint('Error fetching user data or sending SMS: $e');
+        }
+      })();
+    }
     // Determine harvest status based on ripeness and okay_to_harvest
     String harvestStatus;
     if (okayToHarvest) {

@@ -7,7 +7,7 @@ class DirectAuth {
 
   // Sign up method that completely avoids the problematic code path
   static Future<bool> createAccount(
-      String email, String password, String name) async {
+      String email, String password, String name, String number) async {
     try {
       print('DirectAuth: Starting account creation');
 
@@ -68,6 +68,7 @@ class DirectAuth {
             'uid': uid,
             'email': email,
             'name': name,
+            'phone': number,
             'emailVerified': false,
             'createdAt': FieldValue.serverTimestamp(),
           });
@@ -219,7 +220,16 @@ class DirectAuth {
       final currentUser = _auth.currentUser;
       if (currentUser != null) {
         // Basic verification with no additional settings
-        await currentUser.sendEmailVerification();
+        await currentUser.sendEmailVerification(
+          ActionCodeSettings(
+            url: 'https://my-fruitveggie.firebaseapp.com/__/auth/action',
+            handleCodeInApp: true,
+            androidPackageName: 'com.example.fruitveggie',
+            androidInstallApp: true,
+            androidMinimumVersion: '12',
+            iOSBundleId: 'com.example.fruitveggie',
+          ),
+        );
         print(
             'DirectAuth: Basic verification email sent without ActionCodeSettings');
         return true;
