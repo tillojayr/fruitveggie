@@ -58,6 +58,9 @@ dependencies:
   back_button_interceptor: ^8.0.4
   geocoding: ^4.0.0
   shared_preferences: ^2.2.3
+  pdf: ^3.10.7
+  printing: ^5.11.1
+  open_file: ^3.3.2
 
 dev_dependencies:
   flutter_test:
@@ -72,7 +75,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 # Flutter launcher icons configuration
-flutter_launcher_icons:
+flutter_icons:
   android: true
   ios: true
   image_path: "assets/images/logo.png"

@@ -15,6 +15,7 @@ class SignUpPage extends StatefulWidget {
 class _SignUpPageState extends State<SignUpPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
+  final _phoneNumber = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -46,6 +47,7 @@ class _SignUpPageState extends State<SignUpPage> {
           _emailController.text.trim(),
           _passwordController.text,
           _nameController.text.trim(),
+          _phoneNumber.text.trim(),
         );
 
         if (!mounted) return;
@@ -120,6 +122,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   'uid': uid,
                   'email': _emailController.text.trim(),
                   'name': _nameController.text.trim(),
+                  'phone': _phoneNumber.text.trim(),
                   'emailVerified': false,
                   'createdAt': FieldValue.serverTimestamp(),
                 }, SetOptions(merge: true));
@@ -443,6 +446,25 @@ class _SignUpPageState extends State<SignUpPage> {
                     },
                   ),
                   const SizedBox(height: 16),
+                  // Phone number Field
+                  TextFormField(
+                    controller: _phoneNumber,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number',
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
+                    keyboardType: TextInputType.phone,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Please enter your phone number';
+                      }
+                      if (!RegExp(r'^\d{7,15}$').hasMatch(value)) {
+                        return 'Please enter a valid phone number';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 16),
                   // Email Field
                   TextFormField(
                     controller: _emailController,
@@ -600,6 +622,7 @@ class _SignUpPageState extends State<SignUpPage> {
   @override
   void dispose() {
     _nameController.dispose();
+    _phoneNumber.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmPasswordController.dispose();

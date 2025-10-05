@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class SmsService {
   /// API endpoint for sending SMS messages
   final String _apiUrl;
-  
+
   /// API token for authentication
   final String _apiToken;
 
@@ -19,9 +19,8 @@ class SmsService {
   /// Factory constructor that loads the API token from shared preferences
   static Future<SmsService> create() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final apiUrl = prefs.getString('sms_api_url') ?? 'https://api.example.com/sms';
-      final apiToken = prefs.getString('sms_api_token') ?? '';
+      final apiUrl = 'https://api.semaphore.co/api/v4/messages';
+      final apiToken = '0506723618dc639c0859c6554053435b';
 
       // For security, in debug mode, log a warning if no token is set
       if (apiToken.isEmpty && kDebugMode) {
@@ -33,8 +32,7 @@ class SmsService {
     } catch (e) {
       debugPrint('Error creating SmsService: $e');
       // Return a service with default values if there's an error
-      return SmsService(
-          apiUrl: 'https://api.example.com/sms', apiToken: '');
+      return SmsService(apiUrl: 'https://api.example.com/sms', apiToken: '');
     }
   }
 
@@ -59,34 +57,33 @@ class SmsService {
   }
 
   /// Send an SMS message to the provided recipient
-  /// 
+  ///
   /// [message] The text message to send
   /// [recipient] The phone number to send the message to (in E.164 format, e.g. +15551234567)
   /// Returns a Future that completes with a bool indicating success or failure
-  Future<bool> sendSms({required String message, required String recipient}) async {
-    if (_apiToken.isEmpty) {
-      debugPrint('Error: SMS API token is not set');
-      return false;
-    }
+  Future<bool> sendSms(
+      {required String message, required String recipient}) async {
+    // Data payload (same as your PHP cURL parameters)
+    final body = {
+      'apikey': _apiToken,
+      'number': recipient,
+      'message': message,
+      'sendername': 'SmartWatt',
+    };
 
     try {
+      // Send POST request
       final response = await http.post(
         Uri.parse(_apiUrl),
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer $_apiToken',
-        },
-        body: jsonEncode({
-          'to': recipient,
-          'message': message,
-        }),
+        body: body, // automatically encoded as x-www-form-urlencoded
       );
 
-      if (response.statusCode >= 200 && response.statusCode < 300) {
+      if (response.statusCode == 200) {
         debugPrint('SMS sent successfully to $recipient');
         return true;
       } else {
-        debugPrint('Failed to send SMS: ${response.statusCode}, ${response.body}');
+        debugPrint(
+            'Failed to send SMS. Status code: ${response.statusCode}, Body: ${response.body}');
         return false;
       }
     } catch (e) {
@@ -94,9 +91,9 @@ class SmsService {
       return false;
     }
   }
-  
+
   /// Send a batch of SMS messages to multiple recipients
-  /// 
+  ///
   /// [message] The text message to send to all recipients
   /// [recipients] List of phone numbers to send the message to
   /// Returns a Future that completes with a map of recipient to success/failure status
@@ -126,7 +123,8 @@ class SmsService {
           }),
         );
 
-        results[recipient] = response.statusCode >= 200 && response.statusCode < 300;
+        results[recipient] =
+            response.statusCode >= 200 && response.statusCode < 300;
       } catch (e) {
         debugPrint('Error sending SMS to $recipient: $e');
         results[recipient] = false;
