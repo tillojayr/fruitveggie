@@ -18,6 +18,7 @@ class UserService {
         'uid': uid,
         'email': email,
         'name': name,
+        'mobilePhone': null,
         'profilePicture': null,
         'createdAt': FieldValue.serverTimestamp(),
       });
@@ -124,6 +125,19 @@ class UserService {
     } catch (e) {
       print('Error updating user name: $e');
       throw 'Failed to update user name';
+    }
+  }
+
+  // Update user mobile phone
+  Future<void> updateUserMobilePhone(String uid, String mobilePhone) async {
+    try {
+      await _firestore.collection('users').doc(uid).update({
+        'mobilePhone': mobilePhone,
+      });
+      print('Successfully updated user mobile phone');
+    } catch (e) {
+      print('Error updating user mobile phone: $e');
+      throw 'Failed to update user mobile phone';
     }
   }
 }

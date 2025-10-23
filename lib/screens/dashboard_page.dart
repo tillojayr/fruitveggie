@@ -1794,6 +1794,7 @@ class _DashboardPageState extends State<DashboardPage>
                       final name = userData['name'] as String? ?? 'No name set';
                       final email =
                           userData['email'] as String? ?? 'No email set';
+                      final mobilePhone = userData['mobilePhone'] as String?;
                       final profilePicture =
                           userData['profilePicture'] as String?;
 
@@ -2022,6 +2023,17 @@ class _DashboardPageState extends State<DashboardPage>
                                       ),
                                     );
                                   },
+                                ),
+
+                                const SizedBox(height: 12),
+
+                                // Info cards - Mobile Phone
+                                _buildInfoCard(
+                                  icon: Icons.phone,
+                                  label: 'Mobile Phone',
+                                  value: mobilePhone ?? 'Not set',
+                                  iconColor: const Color(0xFF9C27B0),
+                                  onTap: () => _showEditMobilePhoneDialog(context, mobilePhone),
                                 ),
 
                                 const SizedBox(height: 12),
@@ -2438,6 +2450,88 @@ class _DashboardPageState extends State<DashboardPage>
         _showProfileDialog(context);
       }
     }
+  }
+
+  // Show edit mobile phone dialog
+  void _showEditMobilePhoneDialog(BuildContext context, String? currentPhone) {
+    final TextEditingController phoneController = TextEditingController(text: currentPhone ?? '');
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Edit Mobile Phone'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: phoneController,
+                decoration: const InputDecoration(
+                  labelText: 'Mobile Phone',
+                  hintText: 'Enter your mobile phone number',
+                  prefixIcon: Icon(Icons.phone),
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.phone,
+                maxLength: 15,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final newPhone = phoneController.text.trim();
+                final currentUser = _authService.currentUser;
+                
+                if (currentUser != null) {
+                  try {
+                    await _userService.updateUserMobilePhone(currentUser.uid, newPhone);
+                    if (context.mounted) {
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Mobile phone updated successfully'),
+                          backgroundColor: Colors.green,
+                        ),
+                      );
+                      // Reopen the profile dialog to show updated data
+                      _showProfileDialog(context);
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error updating mobile phone: $e'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                    }
+                  }
+                } else {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('You must be logged in to update your profile'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF9C27B0),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Save'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   // List of feature titles and descriptions from the old landing page
