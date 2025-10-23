@@ -5,6 +5,7 @@ import 'package:image_picker/image_picker.dart';
 import '../utils/app_theme.dart';
 import 'dart:io';
 import '../utils/custom_route.dart';
+import 'package:flutter/services.dart';
 
 class CameraPage extends StatefulWidget {
   const CameraPage({super.key, this.onBackToDashboard});
@@ -15,7 +16,7 @@ class CameraPage extends StatefulWidget {
   State<CameraPage> createState() => _CameraPageState();
 }
 
-class _CameraPageState extends State<CameraPage> {
+class _CameraPageState extends State<CameraPage> with WidgetsBindingObserver {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
   bool _isRearCameraSelected = true;
@@ -27,51 +28,103 @@ class _CameraPageState extends State<CameraPage> {
       final controller = _controller;
       _controller = null;
       _initializeControllerFuture = null;
+      
       if (controller != null) {
         if (controller.value.isInitialized) {
           try {
             await controller.pausePreview();
-          } catch (_) {}
+          } catch (e) {
+            print('Error pausing camera preview: $e');
+          }
         }
-        await controller.dispose();
+        try {
+          await controller.dispose();
+        } catch (e) {
+          print('Error disposing camera controller: $e');
+        }
       }
-    } catch (_) {}
+    } catch (e) {
+      print('Error in camera disposal: $e');
+    }
   }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _initializeCamera();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (_controller == null || !_controller!.value.isInitialized) {
+      return;
+    }
+
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        // Pause camera when app goes to background
+        _controller?.pausePreview();
+        break;
+      case AppLifecycleState.resumed:
+        // Resume camera when app comes back to foreground
+        if (mounted) {
+          _controller?.resumePreview();
+        }
+        break;
+      case AppLifecycleState.hidden:
+        break;
+    }
   }
 
   Future<void> _initializeCamera() async {
     if (!mounted) return;
 
     try {
+      // Dispose of the previous controller if it exists
+      await _disposeCameraSafely();
+      
       final cameras = await availableCameras();
       if (!mounted) return;
 
-      final firstCamera = _isRearCameraSelected ? cameras.first : cameras.last;
+      if (cameras.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('No cameras found on this device')),
+          );
+        }
+        return;
+      }
 
-      // Dispose of the previous controller if it exists
-      await _disposeCameraSafely();
+      final selectedCamera = _isRearCameraSelected ? cameras.first : cameras.last;
 
       // Use medium resolution to reduce buffer overflow issues
       _controller = CameraController(
-        firstCamera,
+        selectedCamera,
         ResolutionPreset.medium,
         enableAudio: false, // Disable audio to improve performance
         imageFormatGroup: ImageFormatGroup.jpeg,
       );
+      
       _initializeControllerFuture = _controller?.initialize();
-
+      
+      // Wait for initialization to complete
+      await _initializeControllerFuture;
+      
       if (mounted) {
         setState(() {});
       }
     } catch (e) {
+      print('Camera initialization error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error initializing camera: $e')),
+          SnackBar(
+            content: Text('Error initializing camera: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
         );
       }
     }
@@ -227,22 +280,36 @@ class _CameraPageState extends State<CameraPage> {
                               color: Colors.white,
                               child: InkWell(
                                 onTap: () async {
+                                  if (_controller == null || !_controller!.value.isInitialized) {
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Camera not ready. Please wait...'),
+                                          backgroundColor: Colors.orange,
+                                        ),
+                                      );
+                                    }
+                                    return;
+                                  }
+
                                   try {
                                     await _initializeControllerFuture;
-                                    final image =
-                                        await _controller!.takePicture();
-
-                                    // Pause preview immediately after capture to free up buffers
-                                    try {
-                                      await _controller!.pausePreview();
-                                    } catch (_) {}
+                                    final image = await _controller!.takePicture();
 
                                     if (!mounted) return;
 
                                     // Show options for automatic or manual analysis
                                     _showImageProcessingOptions(image.path);
                                   } catch (e) {
-                                    print(e);
+                                    print('Camera capture error: $e');
+                                    if (mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text('Failed to capture image: $e'),
+                                          backgroundColor: Colors.red,
+                                        ),
+                                      );
+                                    }
                                   }
                                 },
                               ),
@@ -286,13 +353,9 @@ class _CameraPageState extends State<CameraPage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // Ensure camera is fully disposed to release buffers
-    try {
-      if (_controller != null && _controller!.value.isInitialized) {
-        _controller!.pausePreview();
-      }
-    } catch (_) {}
-    _controller?.dispose();
+    _disposeCameraSafely();
     super.dispose();
   }
 
@@ -460,31 +523,29 @@ class _CameraPageState extends State<CameraPage> {
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 50),
               ),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.pop(context); // Close the bottom sheet
-                // Dispose camera before navigating to avoid ImageReader buffer overflow
-                _disposeCameraSafely().whenComplete(() {
-                  // Navigate to result page with automatic detection
-                  Navigator.push(
-                    context,
-                    SlidePageRoute(
-                      page: ResultPage(
-                        imagePath: imagePath,
-                        useAutoDetection: true,
-                        onDataSaved: () {
-                          if (widget.onBackToDashboard != null) {
-                            widget.onBackToDashboard!();
-                          }
-                        },
-                      ),
+                
+                // Navigate to result page with automatic detection
+                await Navigator.push(
+                  context,
+                  SlidePageRoute(
+                    page: ResultPage(
+                      imagePath: imagePath,
+                      useAutoDetection: true,
+                      onDataSaved: () {
+                        if (widget.onBackToDashboard != null) {
+                          widget.onBackToDashboard!();
+                        }
+                      },
                     ),
-                  ).then((_) {
-                    // Re-initialize camera when returning to this page
-                    if (mounted) {
-                      _initializeCamera();
-                    }
-                  });
-                });
+                  ),
+                );
+                
+                // Re-initialize camera when returning to this page
+                if (mounted) {
+                  await _initializeCamera();
+                }
               },
             ),
           ),
