@@ -28,6 +28,9 @@ class _ChartPageState extends State<ChartPage> {
   bool _isLoading = true;
   bool _isExporting = false;
   Map<String, int> _cropHarvestDays = {};
+  List<String> _availableCrops = [];
+  String? _selectedCrop;
+  Map<String, List<Map<String, dynamic>>> _cropData = {};
   List<Color> gradientColors = [
     const Color(0xFF2E7D32), // Dark Green
     const Color(0xFF4CAF50), // Medium Green
@@ -63,38 +66,55 @@ class _ChartPageState extends State<ChartPage> {
             .get();
 
         if (result.docs.isNotEmpty) {
-          Map<String, int> cropDaysMap = {};
-          Map<String, int> cropCountMap = {};
+          Map<String, List<Map<String, dynamic>>> cropDataMap = {};
+          Set<String> cropNames = {};
 
-          debugPrint('Data fetched: ${result.docs.length} scans');
+          debugPrint('Data fetched: ${result.docs.length} reminders');
           for (var doc in result.docs) {
             final scanData = doc.data() as Map<String, dynamic>;
 
-            String produceName = scanData['produceType'];
+            debugPrint('All data for scan ${doc.id}: $scanData');
+            String produceName = scanData['produceType'] ?? 'Unknown';
             int daysUntilHarvest = _getDaysUntilHarvest(scanData);
+            double ripenessPercentage = _getRipenessPercentage(scanData);
 
-            // Start with the original name
+            // Create unique key for each crop instance
             String key = produceName;
-            int counter = 2;
-
-            // If the key already exists, keep trying with #2, #3, ...
-            while (cropDaysMap.containsKey(key)) {
+            int counter = 1;
+            while (cropDataMap.containsKey(key)) {
               key = '$produceName#$counter';
               counter++;
             }
 
-            cropDaysMap[key] = daysUntilHarvest + 1;
+            debugPrint(
+                'Processing scan: $key, Days until harvest: $daysUntilHarvest, Ripeness: $ripenessPercentage%');
+
+            cropDataMap[key] = [
+              {
+                'produceName': produceName,
+                'daysUntilHarvest': daysUntilHarvest,
+                'ripenessPercentage': ripenessPercentage,
+                'harvestDate': scanData['harvestDate'],
+                'scanId': scanData['scanId'],
+              }
+            ];
+
+            cropNames.add(produceName);
           }
 
-          debugPrint('Initial crop days map: $cropDaysMap');
-          debugPrint('Processed crop days map: $cropDaysMap');
+          debugPrint('Crop data map: $cropDataMap');
           setState(() {
-            _cropHarvestDays = cropDaysMap;
+            _cropData = cropDataMap;
+            _availableCrops = cropNames.toList()..sort();
+            _selectedCrop =
+                _availableCrops.isNotEmpty ? _availableCrops.first : null;
             _isLoading = false;
           });
         } else {
           setState(() {
-            _cropHarvestDays = {};
+            _cropData = {};
+            _availableCrops = [];
+            _selectedCrop = null;
             _isLoading = false;
           });
         }
@@ -146,6 +166,35 @@ class _ChartPageState extends State<ChartPage> {
       }
     }
     return 0; // Default to 0 days if no valid harvest date is found
+  }
+
+  double _getRipenessPercentage(Map<String, dynamic>? scanData) {
+    if (scanData == null) return 0.0;
+
+    // Try to get ripeness from different possible fields
+    var ripeness = scanData['ripeness'] ??
+        scanData['ripenessPercentage'] ??
+        scanData['ripeness_percentage'];
+
+    if (ripeness is double) {
+      return ripeness;
+    } else if (ripeness is int) {
+      return ripeness.toDouble();
+    } else if (ripeness is String) {
+      // Parse percentage strings like "75%" or "75% - Nearly ripe"
+      final match = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(ripeness);
+      if (match != null) {
+        return double.tryParse(match.group(1)!) ?? 0.0;
+      }
+    }
+
+    // If no ripeness data, estimate based on days until harvest
+    final daysUntilHarvest = _getDaysUntilHarvest(scanData);
+    if (daysUntilHarvest <= 0) return 100.0;
+    if (daysUntilHarvest <= 3) return 90.0;
+    if (daysUntilHarvest <= 7) return 70.0;
+    if (daysUntilHarvest <= 14) return 50.0;
+    return 25.0;
   }
 
   bool _isReadyForHarvest(Map<String, dynamic> scanData) {
@@ -214,7 +263,7 @@ class _ChartPageState extends State<ChartPage> {
                   _buildHeader(),
                   _isLoading
                       ? _buildLoadingIndicator()
-                      : _cropHarvestDays.isEmpty
+                      : _availableCrops.isEmpty
                           ? _buildEmptyState()
                           : _buildChartContent(),
                 ],
@@ -263,7 +312,7 @@ class _ChartPageState extends State<ChartPage> {
                     IconButton(
                       icon:
                           const Icon(Icons.picture_as_pdf, color: Colors.white),
-                      onPressed: _cropHarvestDays.isEmpty ? null : _exportToPdf,
+                      onPressed: _availableCrops.isEmpty ? null : _exportToPdf,
                       tooltip: 'Export to PDF',
                     ),
                     IconButton(
@@ -277,13 +326,48 @@ class _ChartPageState extends State<ChartPage> {
             ),
             const SizedBox(height: 15),
             Text(
-              'View days until harvest for all your produce',
+              'View ripeness status for your selected crop',
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.white.withOpacity(0.9),
               ),
             ),
             const SizedBox(height: 10),
+            if (_availableCrops.isNotEmpty) ...[
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: DropdownButton<String>(
+                  value: _selectedCrop,
+                  isExpanded: true,
+                  underline: const SizedBox(),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  dropdownColor: const Color(0xFF2E7D32),
+                  items: _availableCrops.map((String crop) {
+                    return DropdownMenuItem<String>(
+                      value: crop,
+                      child: Text(
+                        crop,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (String? newValue) {
+                    setState(() {
+                      _selectedCrop = newValue;
+                    });
+                  },
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -303,7 +387,7 @@ class _ChartPageState extends State<ChartPage> {
   }
 
   Future<void> _exportToPdf() async {
-    if (_cropHarvestDays.isEmpty) {
+    if (_availableCrops.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('No data available to export')),
       );
@@ -315,10 +399,16 @@ class _ChartPageState extends State<ChartPage> {
     });
 
     try {
-      final File? pdfFile = await _pdfService.generateHarvestChartPdf(
-        cropHarvestDays: _cropHarvestDays,
-        title: 'Harvest Chart Report',
-        description: 'Estimated days until harvest based on your scans.',
+      // Get data for the selected crop only
+      final selectedCropData = _cropData.entries
+          .where((entry) => entry.value.first['produceName'] == _selectedCrop)
+          .toList();
+
+      final File? pdfFile = await _pdfService.generateRipenessChartPdf(
+        cropData: selectedCropData,
+        selectedCrop: _selectedCrop ?? 'All Crops',
+        title: 'Ripeness Status Chart Report',
+        description: 'Ripeness status and harvest timeline for $_selectedCrop.',
       );
 
       if (pdfFile != null) {
@@ -448,6 +538,10 @@ class _ChartPageState extends State<ChartPage> {
   }
 
   Widget _buildChartContent() {
+    if (_selectedCrop == null) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -455,7 +549,7 @@ class _ChartPageState extends State<ChartPage> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            'Estimated Days Until Harvest',
+            'Ripeness Status for $_selectedCrop',
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.bold,
@@ -467,7 +561,7 @@ class _ChartPageState extends State<ChartPage> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Text(
-            'Based on your scans',
+            'Daily ripeness progression until harvest',
             style: TextStyle(
               fontSize: 14,
               color: Colors.grey.shade600,
@@ -475,37 +569,73 @@ class _ChartPageState extends State<ChartPage> {
           ),
         ),
         const SizedBox(height: 20),
-        _buildBarChart(),
+        _buildRipenessChart(),
         const SizedBox(height: 30),
-        _buildLegend(),
+        _buildRipenessLegend(),
       ],
     );
   }
 
-  Widget _buildBarChart() {
-    final entries = _cropHarvestDays.entries.toList()
-      ..sort((a, b) => a.value.compareTo(b.value));
+  Widget _buildRipenessChart() {
+    if (_selectedCrop == null) return const SizedBox.shrink();
 
-    debugPrint('Building chart with ${entries.length} entries');
+    // Get all data for the selected crop
+    final cropInstances = _cropData.entries
+        .where((entry) => entry.value.first['produceName'] == _selectedCrop)
+        .toList();
+
+    if (cropInstances.isEmpty) return const SizedBox.shrink();
+
+    // Calculate daily ripeness progression for each instance
+    List<Map<String, dynamic>> chartData = [];
+    for (var instance in cropInstances) {
+      final data = instance.value.first;
+      final daysUntilHarvest = data['daysUntilHarvest'] as int;
+      final currentRipenessPercentage = data['ripenessPercentage'] as double;
+
+      // Create data points for each day from 1 to daysUntilHarvest
+      for (int day = 1; day <= daysUntilHarvest; day++) {
+        // Calculate ripeness percentage for this specific day
+        // Ripeness increases over time, starting from current percentage
+        final ripenessForDay = _calculateRipenessForDay(currentRipenessPercentage, day, daysUntilHarvest);
+        
+        // Determine ripeness status based on percentage
+        String ripenessStatus = _getRipenessStatus(ripenessForDay, daysUntilHarvest - day);
+        
+        chartData.add({
+          'day': day,
+          'ripenessStatus': ripenessStatus,
+          'ripenessPercentage': ripenessForDay,
+          'daysUntilHarvest': daysUntilHarvest,
+          'instanceName': instance.key,
+        });
+      }
+    }
+
+    debugPrint('Building ripeness chart with ${chartData.length} entries');
     return Container(
       height: 300,
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
       child: BarChart(
         BarChartData(
           alignment: BarChartAlignment.spaceAround,
-          maxY: _getMaxY(),
+          maxY: 100, // Ripeness percentage scale 0-100
           barTouchData: BarTouchData(
             enabled: true,
             touchTooltipData: BarTouchTooltipData(
               tooltipBgColor: Colors.blueGrey.withOpacity(0.8),
               getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                return BarTooltipItem(
-                  '${entries[groupIndex].key}\n${rod.toY.round()} days',
-                  const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                );
+                if (groupIndex < chartData.length) {
+                  final data = chartData[groupIndex];
+                  return BarTooltipItem(
+                    'Day ${data['day']}\n${data['ripenessStatus']}\n${data['ripenessPercentage'].toStringAsFixed(1)}%',
+                    const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  );
+                }
+                return null;
               },
             ),
           ),
@@ -515,16 +645,11 @@ class _ChartPageState extends State<ChartPage> {
               sideTitles: SideTitles(
                 showTitles: true,
                 getTitlesWidget: (value, meta) {
-                  if (value >= 0 && value < entries.length) {
-                    // Abbreviate longer crop names
-                    String name = entries[value.toInt()].key;
-                    if (name.length > 10) {
-                      name = '${name.substring(0, 8)}...';
-                    }
+                  if (value >= 0 && value < chartData.length) {
                     return Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                        name,
+                        'Day ${chartData[value.toInt()]['day']}',
                         style: TextStyle(
                           color: Colors.grey.shade700,
                           fontWeight: FontWeight.bold,
@@ -541,16 +666,12 @@ class _ChartPageState extends State<ChartPage> {
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 30,
+                reservedSize: 40,
                 getTitlesWidget: (value, meta) {
-                  if (value % 1 == 0) {
+                  if (value % 10 == 0) {
                     return Text(
-                      value.toInt().toString(),
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                      ),
+                      '${value.toInt()}%',
+                      style: const TextStyle(fontSize: 10),
                     );
                   }
                   return const SizedBox.shrink();
@@ -562,18 +683,24 @@ class _ChartPageState extends State<ChartPage> {
           ),
           borderData: FlBorderData(show: false),
           barGroups: List.generate(
-            entries.length,
+            chartData.length,
             (index) {
-              final entry = entries[index];
+              final data = chartData[index];
+              final ripenessPercentage = data['ripenessPercentage'] as double;
+
+              // ADD DEBUG PRINT HERE:
+              debugPrint(
+                  'Bar Chart - Index: $index, Y-axis Value: $ripenessPercentage%');
+
               return BarChartGroupData(
                 x: index,
                 barRods: [
                   BarChartRodData(
-                    toY: entry.value.toDouble(),
+                    toY: ripenessPercentage,
                     gradient: LinearGradient(
                       colors: [
-                        _getColorForValue(entry.value.toDouble()),
-                        _getColorForValue(entry.value.toDouble())
+                        _getColorForRipenessStatus(data['ripenessStatus']),
+                        _getColorForRipenessStatus(data['ripenessStatus'])
                             .withOpacity(0.6),
                       ],
                       begin: Alignment.topCenter,
@@ -588,7 +715,7 @@ class _ChartPageState extends State<ChartPage> {
           ),
           gridData: FlGridData(
             show: true,
-            horizontalInterval: 1,
+            horizontalInterval: 10,
             getDrawingHorizontalLine: (value) => FlLine(
               color: Colors.grey.shade300,
               strokeWidth: 1,
@@ -600,14 +727,53 @@ class _ChartPageState extends State<ChartPage> {
     );
   }
 
-  double _getMaxY() {
-    if (_cropHarvestDays.isEmpty) return 10.0;
+  double _calculateRipenessForDay(double currentRipeness, int day, int totalDays) {
+    // Calculate how much ripeness should increase per day
+    // Start from current ripeness and reach 100% by harvest day
+    final remainingRipeness = 100.0 - currentRipeness;
+    final ripenessIncreasePerDay = remainingRipeness / totalDays;
+    
+    // Calculate ripeness for this specific day
+    final ripenessForDay = currentRipeness + (ripenessIncreasePerDay * day);
+    
+    // Ensure it doesn't exceed 100%
+    return ripenessForDay.clamp(0.0, 100.0);
+  }
 
-    final maxValue = _cropHarvestDays.values
-        .reduce((curr, next) => curr > next ? curr : next);
+  String _getRipenessStatus(double ripenessPercentage, int daysUntilHarvest) {
+    if (ripenessPercentage >= 100 || daysUntilHarvest <= 0) {
+      return 'Ready to Harvest';
+    } else if (ripenessPercentage >= 70 || daysUntilHarvest <= 3) {
+      return 'Almost Ready';
+    } else {
+      return 'Not Yet Ready';
+    }
+  }
 
-    // Return max value rounded up to next integer plus some padding
-    return (maxValue + 2).toDouble();
+  int _getRipenessLevel(String ripenessStatus) {
+    switch (ripenessStatus) {
+      case 'Not Yet Ready':
+        return 0;
+      case 'Almost Ready':
+        return 1;
+      case 'Ready to Harvest':
+        return 2;
+      default:
+        return 0;
+    }
+  }
+
+  Color _getColorForRipenessStatus(String ripenessStatus) {
+    switch (ripenessStatus) {
+      case 'Not Yet Ready':
+        return const Color(0xFF2E7D32); // Dark Green
+      case 'Almost Ready':
+        return const Color(0xFFFFB300); // Amber
+      case 'Ready to Harvest':
+        return const Color(0xFFE65100); // Deep Orange
+      default:
+        return const Color(0xFF2E7D32);
+    }
   }
 
   Color _getColorForValue(double value) {
@@ -619,14 +785,14 @@ class _ChartPageState extends State<ChartPage> {
     return const Color(0xFF2E7D32); // Far
   }
 
-  Widget _buildLegend() {
+  Widget _buildRipenessLegend() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Color Legend',
+            'Ripeness Status Legend',
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
@@ -638,12 +804,12 @@ class _ChartPageState extends State<ChartPage> {
             spacing: 10,
             runSpacing: 10,
             children: [
-              _buildLegendItem('Ready', const Color(0xFFE65100)),
-              _buildLegendItem('1-3 Days', const Color(0xFFFF9800)),
-              _buildLegendItem('4-5 Days', const Color(0xFFFFB300)),
-              _buildLegendItem('6-7 Days', const Color(0xFF8BC34A)),
-              _buildLegendItem('8-10 Days', const Color(0xFF4CAF50)),
-              _buildLegendItem('10+ Days', const Color(0xFF2E7D32)),
+              _buildLegendItem(
+                  'Not Yet Ready (0-69%)', const Color(0xFF2E7D32)),
+              _buildLegendItem(
+                  'Almost Ready (70-99%)', const Color(0xFFFFB300)),
+              _buildLegendItem(
+                  'Ready to Harvest (100%)', const Color(0xFFE65100)),
             ],
           ),
         ],
