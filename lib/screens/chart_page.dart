@@ -571,6 +571,8 @@ class _ChartPageState extends State<ChartPage> {
         const SizedBox(height: 20),
         _buildRipenessChart(),
         const SizedBox(height: 30),
+        _buildChartDateInfo(),
+        const SizedBox(height: 30),
         _buildRipenessLegend(),
       ],
     );
@@ -597,11 +599,13 @@ class _ChartPageState extends State<ChartPage> {
       for (int day = 1; day <= daysUntilHarvest; day++) {
         // Calculate ripeness percentage for this specific day
         // Ripeness increases over time, starting from current percentage
-        final ripenessForDay = _calculateRipenessForDay(currentRipenessPercentage, day, daysUntilHarvest);
-        
+        final ripenessForDay = _calculateRipenessForDay(
+            currentRipenessPercentage, day, daysUntilHarvest);
+
         // Determine ripeness status based on percentage
-        String ripenessStatus = _getRipenessStatus(ripenessForDay, daysUntilHarvest - day);
-        
+        String ripenessStatus =
+            _getRipenessStatus(ripenessForDay, daysUntilHarvest - day);
+
         chartData.add({
           'day': day,
           'ripenessStatus': ripenessStatus,
@@ -649,7 +653,7 @@ class _ChartPageState extends State<ChartPage> {
                     return Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Text(
-                        'Day ${chartData[value.toInt()]['day']}',
+                        '${chartData[value.toInt()]['day']}',
                         style: TextStyle(
                           color: Colors.grey.shade700,
                           fontWeight: FontWeight.bold,
@@ -662,11 +666,23 @@ class _ChartPageState extends State<ChartPage> {
                 },
                 reservedSize: 42,
               ),
+              // X axis title
+              axisNameWidget: const Padding(
+                padding: EdgeInsets.only(top: 10),
+                child: Text(
+                  'Day (until harvest)',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              axisNameSize: 30,
             ),
             leftTitles: AxisTitles(
               sideTitles: SideTitles(
                 showTitles: true,
-                reservedSize: 40,
+                reservedSize: 50,
                 getTitlesWidget: (value, meta) {
                   if (value % 10 == 0) {
                     return Text(
@@ -677,6 +693,18 @@ class _ChartPageState extends State<ChartPage> {
                   return const SizedBox.shrink();
                 },
               ),
+              // Y axis title
+              axisNameWidget: const Padding(
+                padding: EdgeInsets.only(right: 20),
+                child: Text(
+                  'Ripeness',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              axisNameSize: 20,
             ),
             topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
             rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -727,15 +755,16 @@ class _ChartPageState extends State<ChartPage> {
     );
   }
 
-  double _calculateRipenessForDay(double currentRipeness, int day, int totalDays) {
+  double _calculateRipenessForDay(
+      double currentRipeness, int day, int totalDays) {
     // Calculate how much ripeness should increase per day
     // Start from current ripeness and reach 100% by harvest day
     final remainingRipeness = 100.0 - currentRipeness;
     final ripenessIncreasePerDay = remainingRipeness / totalDays;
-    
+
     // Calculate ripeness for this specific day
     final ripenessForDay = currentRipeness + (ripenessIncreasePerDay * day);
-    
+
     // Ensure it doesn't exceed 100%
     return ripenessForDay.clamp(0.0, 100.0);
   }
@@ -766,11 +795,11 @@ class _ChartPageState extends State<ChartPage> {
   Color _getColorForRipenessStatus(String ripenessStatus) {
     switch (ripenessStatus) {
       case 'Not Yet Ready':
-        return const Color(0xFF2E7D32); // Dark Green
+        return const Color(0xFFD32F2F); // Red
       case 'Almost Ready':
         return const Color(0xFFFFB300); // Amber
       case 'Ready to Harvest':
-        return const Color(0xFFE65100); // Deep Orange
+        return const Color(0xFF4CAF50); // Green
       default:
         return const Color(0xFF2E7D32);
     }
@@ -783,6 +812,96 @@ class _ChartPageState extends State<ChartPage> {
     if (value <= 7) return const Color(0xFF8BC34A); // Medium
     if (value <= 10) return const Color(0xFF4CAF50); // Further
     return const Color(0xFF2E7D32); // Far
+  }
+
+  Widget _buildChartDateInfo() {
+    if (_selectedCrop == null) return const SizedBox.shrink();
+    
+    // Get all data for the selected crop
+    final cropInstances = _cropData.entries
+        .where((entry) => entry.value.first['produceName'] == _selectedCrop)
+        .toList();
+    
+    if (cropInstances.isEmpty) return const SizedBox.shrink();
+    
+    // Get the first instance for date information
+    final firstInstance = cropInstances.first.value.first;
+    final harvestDate = firstInstance['harvestDate'];
+    
+    // Calculate scan date (harvest date minus days until harvest)
+    DateTime? scanDateTime;
+    DateTime? harvestDateTime;
+    
+    if (harvestDate is Timestamp) {
+      harvestDateTime = harvestDate.toDate();
+      final daysUntilHarvest = firstInstance['daysUntilHarvest'] as int;
+      scanDateTime = harvestDateTime.subtract(Duration(days: daysUntilHarvest));
+    } else if (harvestDate is DateTime) {
+      harvestDateTime = harvestDate;
+      final daysUntilHarvest = firstInstance['daysUntilHarvest'] as int;
+      scanDateTime = harvestDateTime.subtract(Duration(days: daysUntilHarvest));
+    }
+    
+    String scanDateStr = 'N/A';
+    String harvestDateStr = 'N/A';
+    
+    if (scanDateTime != null) {
+      scanDateStr = '${scanDateTime.month}/${scanDateTime.day}/${scanDateTime.year}';
+    }
+    if (harvestDateTime != null) {
+      harvestDateStr = '${harvestDateTime.month}/${harvestDateTime.day}/${harvestDateTime.year}';
+    }
+    
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Scan Date',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                scanDateStr,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                'Harvest Date',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.grey.shade700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                harvestDateStr,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade800,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildRipenessLegend() {
@@ -805,11 +924,11 @@ class _ChartPageState extends State<ChartPage> {
             runSpacing: 10,
             children: [
               _buildLegendItem(
-                  'Not Yet Ready (0-69%)', const Color(0xFF2E7D32)),
+                  'Not Yet Ready (0-69%)', const Color(0xFFD32F2F)),
               _buildLegendItem(
                   'Almost Ready (70-99%)', const Color(0xFFFFB300)),
               _buildLegendItem(
-                  'Ready to Harvest (100%)', const Color(0xFFE65100)),
+                  'Ready to Harvest (100%)', const Color(0xFF4CAF50)),
             ],
           ),
         ],

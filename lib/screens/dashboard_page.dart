@@ -1794,212 +1794,231 @@ class _DashboardPageState extends State<DashboardPage>
                       final name = userData['name'] as String? ?? 'No name set';
                       final email =
                           userData['email'] as String? ?? 'No email set';
-                      final mobilePhone = userData['mobilePhone'] as String?;
+                      final mobilePhone = userData['phone'] as String?;
                       final profilePicture =
                           userData['profilePicture'] as String?;
 
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // Header with gradient background and profile info
-                          Container(
-                            padding: const EdgeInsets.all(24),
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [Color(0xFF2E7D32), Color(0xFF1B5E20)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
+                      return SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Header with gradient background and profile info
+                            Container(
+                              padding: const EdgeInsets.all(24),
+                              decoration: const BoxDecoration(
+                                gradient: LinearGradient(
+                                  colors: [
+                                    Color(0xFF2E7D32),
+                                    Color(0xFF1B5E20)
+                                  ],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                borderRadius: BorderRadius.only(
+                                  topLeft: Radius.circular(28),
+                                  topRight: Radius.circular(28),
+                                ),
                               ),
-                              borderRadius: BorderRadius.only(
-                                topLeft: Radius.circular(28),
-                                topRight: Radius.circular(28),
-                              ),
-                            ),
-                            child: Column(
-                              children: [
-                                // Close button positioned at top-right
-                                Align(
-                                  alignment: Alignment.topRight,
-                                  child: InkWell(
-                                    onTap: () => Navigator.of(context).pop(),
-                                    child: Container(
-                                      padding: const EdgeInsets.all(6),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.3),
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: const Icon(
-                                        Icons.close,
-                                        color: Colors.white,
-                                        size: 20,
+                              child: Column(
+                                children: [
+                                  // Close button positioned at top-right
+                                  Align(
+                                    alignment: Alignment.topRight,
+                                    child: InkWell(
+                                      onTap: () => Navigator.of(context).pop(),
+                                      child: Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.3),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.close,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(height: 16),
+                                  const SizedBox(height: 16),
 
-                                // Profile picture with gradient ring and edit option
-                                Stack(
-                                  children: [
-                                    // Gradient ring around avatar
-                                    GestureDetector(
-                                      onTap: () => _pickProfilePicture(context),
-                                      child: Container(
-                                        padding: const EdgeInsets.all(3),
-                                        decoration: const BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              Color(0xFF4CAF50),
-                                              Color(0xFF2E7D32)
-                                            ],
-                                            begin: Alignment.topLeft,
-                                            end: Alignment.bottomRight,
-                                          ),
-                                        ),
+                                  // Profile picture with gradient ring and edit option
+                                  Stack(
+                                    children: [
+                                      // Gradient ring around avatar
+                                      GestureDetector(
+                                        onTap: () =>
+                                            _pickProfilePicture(context),
                                         child: Container(
-                                          padding: const EdgeInsets.all(4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
+                                          padding: const EdgeInsets.all(3),
+                                          decoration: const BoxDecoration(
                                             shape: BoxShape.circle,
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black
-                                                    .withOpacity(0.12),
-                                                blurRadius: 10,
-                                                offset: const Offset(0, 4),
-                                              ),
-                                            ],
+                                            gradient: LinearGradient(
+                                              colors: [
+                                                Color(0xFF4CAF50),
+                                                Color(0xFF2E7D32)
+                                              ],
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            ),
                                           ),
-                                          child: CircleAvatar(
-                                            radius: 50,
-                                            backgroundColor: Colors.white,
-                                            child: ClipOval(
-                                              child: SizedBox(
-                                                width: 96,
-                                                height: 96,
-                                                child: profilePicture != null
-                                                    ? (_userService
-                                                            .getProfilePictureWidget(
-                                                                profilePicture) ??
-                                                        Icon(
+                                          child: Container(
+                                            padding: const EdgeInsets.all(4),
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              shape: BoxShape.circle,
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.12),
+                                                  blurRadius: 10,
+                                                  offset: const Offset(0, 4),
+                                                ),
+                                              ],
+                                            ),
+                                            child: CircleAvatar(
+                                              radius: 50,
+                                              backgroundColor: Colors.white,
+                                              child: ClipOval(
+                                                child: SizedBox(
+                                                  width: 96,
+                                                  height: 96,
+                                                  child: profilePicture != null
+                                                      ? (_userService
+                                                              .getProfilePictureWidget(
+                                                                  profilePicture) ??
+                                                          Icon(
+                                                            Icons.person,
+                                                            size: 50,
+                                                            color: Colors
+                                                                .grey[300],
+                                                          ))
+                                                      : Icon(
                                                           Icons.person,
                                                           size: 50,
                                                           color:
                                                               Colors.grey[300],
-                                                        ))
-                                                    : Icon(
-                                                        Icons.person,
-                                                        size: 50,
-                                                        color: Colors.grey[300],
-                                                      ),
+                                                        ),
+                                                ),
                                               ),
                                             ),
                                           ),
                                         ),
                                       ),
-                                    ),
 
-                                    // Edit camera button
-                                    Positioned(
-                                      bottom: 0,
-                                      right: 0,
-                                      child: GestureDetector(
-                                        onTap: () =>
-                                            _pickProfilePicture(context),
-                                        child: Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFFE65100),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
+                                      // Edit camera button
+                                      Positioned(
+                                        bottom: 0,
+                                        right: 0,
+                                        child: GestureDetector(
+                                          onTap: () =>
+                                              _pickProfilePicture(context),
+                                          child: Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFE65100),
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: Colors.white,
+                                                width: 2,
+                                              ),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black
+                                                      .withOpacity(0.2),
+                                                  spreadRadius: 1,
+                                                  blurRadius: 3,
+                                                ),
+                                              ],
+                                            ),
+                                            child: const Icon(
+                                              Icons.camera_alt,
                                               color: Colors.white,
-                                              width: 2,
+                                              size: 16,
                                             ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black
-                                                    .withOpacity(0.2),
-                                                spreadRadius: 1,
-                                                blurRadius: 3,
-                                              ),
-                                            ],
-                                          ),
-                                          child: const Icon(
-                                            Icons.camera_alt,
-                                            color: Colors.white,
-                                            size: 16,
                                           ),
                                         ),
                                       ),
+                                    ],
+                                  ),
+
+                                  const SizedBox(height: 16),
+
+                                  // User name
+                                  Text(
+                                    name,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                  ],
-                                ),
-
-                                const SizedBox(height: 16),
-
-                                // User name
-                                Text(
-                                  name,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 22,
-                                    fontWeight: FontWeight.bold,
                                   ),
-                                ),
 
-                                const SizedBox(height: 4),
+                                  const SizedBox(height: 4),
 
-                                // User email
-                                Text(
-                                  email,
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.9),
-                                    fontSize: 14,
+                                  // User email
+                                  Text(
+                                    email,
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.9),
+                                      fontSize: 14,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
 
-                          // User details section with cards
-                          Padding(
-                            padding: const EdgeInsets.all(24),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Account Information',
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF333333),
+                            // User details section with cards
+                            Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Account Information',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF333333),
+                                    ),
                                   ),
-                                ),
 
-                                const SizedBox(height: 16),
+                                  const SizedBox(height: 16),
 
-                                // Info cards - Name
-                                _buildInfoCard(
-                                  icon: Icons.person,
-                                  label: 'Name',
-                                  value: name,
-                                  iconColor: const Color(0xFF2E7D32),
-                                ),
+                                  // Info cards - Name
+                                  _buildInfoCard(
+                                    icon: Icons.person,
+                                    label: 'Name',
+                                    value: name,
+                                    iconColor: const Color(0xFF2E7D32),
+                                  ),
 
-                                const SizedBox(height: 12),
+                                  const SizedBox(height: 12),
 
-                                // Info cards - Email (copy to clipboard)
-                                _buildInfoCard(
-                                  icon: Icons.email,
-                                  label: 'Email',
-                                  value: email,
-                                  iconColor: const Color(0xFF1565C0),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.copy, size: 18),
-                                    color: const Color(0xFF1565C0),
-                                    tooltip: 'Copy email',
-                                    onPressed: () {
+                                  // Info cards - Email (copy to clipboard)
+                                  _buildInfoCard(
+                                    icon: Icons.email,
+                                    label: 'Email',
+                                    value: email,
+                                    iconColor: const Color(0xFF1565C0),
+                                    trailing: IconButton(
+                                      icon: const Icon(Icons.copy, size: 18),
+                                      color: const Color(0xFF1565C0),
+                                      tooltip: 'Copy email',
+                                      onPressed: () {
+                                        Clipboard.setData(
+                                            ClipboardData(text: email));
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                                'Email copied to clipboard'),
+                                            duration: Duration(seconds: 2),
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                    onTap: () {
                                       Clipboard.setData(
                                           ClipboardData(text: email));
                                       ScaffoldMessenger.of(context)
@@ -2012,67 +2031,59 @@ class _DashboardPageState extends State<DashboardPage>
                                       );
                                     },
                                   ),
-                                  onTap: () {
-                                    Clipboard.setData(
-                                        ClipboardData(text: email));
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content:
-                                            Text('Email copied to clipboard'),
-                                        duration: Duration(seconds: 2),
-                                      ),
-                                    );
-                                  },
-                                ),
 
-                                const SizedBox(height: 12),
+                                  const SizedBox(height: 12),
 
-                                // Info cards - Mobile Phone
-                                _buildInfoCard(
-                                  icon: Icons.phone,
-                                  label: 'Mobile Phone',
-                                  value: mobilePhone ?? 'Not set',
-                                  iconColor: const Color(0xFF9C27B0),
-                                  onTap: () => _showEditMobilePhoneDialog(context, mobilePhone),
-                                ),
+                                  // Info cards - Mobile Phone
+                                  _buildInfoCard(
+                                    icon: Icons.phone,
+                                    label: 'Mobile Phone',
+                                    value: mobilePhone ?? 'Not set',
+                                    iconColor: const Color(0xFF9C27B0),
+                                    onTap: () => _showEditMobilePhoneDialog(
+                                        context, mobilePhone),
+                                  ),
 
-                                const SizedBox(height: 12),
+                                  const SizedBox(height: 12),
 
-                                // Info cards - Password
-                                _buildInfoCard(
-                                  icon: Icons.lock,
-                                  label: 'Password',
-                                  value: '••••••••••',
-                                  iconColor: const Color(0xFFE65100),
-                                ),
+                                  // Info cards - Password
+                                  _buildInfoCard(
+                                    icon: Icons.lock,
+                                    label: 'Password',
+                                    value: '••••••••••',
+                                    iconColor: const Color(0xFFE65100),
+                                  ),
 
-                                const SizedBox(height: 24),
+                                  const SizedBox(height: 24),
 
-                                // Close button
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {
-                                      Navigator.pop(context);
-                                    },
-                                    icon: const Icon(Icons.close),
-                                    label: const Text('Close'),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color(0xFFE65100),
-                                      foregroundColor: Colors.white,
-                                      elevation: 0,
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 14),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(30),
+                                  // Close button
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.pop(context);
+                                      },
+                                      icon: const Icon(Icons.close),
+                                      label: const Text('Close'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            const Color(0xFFE65100),
+                                        foregroundColor: Colors.white,
+                                        elevation: 0,
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 14),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(30),
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       );
                     },
                   ),
@@ -2230,8 +2241,7 @@ class _DashboardPageState extends State<DashboardPage>
   // Upload profile picture - similar to CameraPage's _pickProfilePicture
   Future<void> _pickProfilePicture(BuildContext context) async {
     try {
-      // Close the profile dialog temporarily to show loading clearly
-      Navigator.of(context).pop();
+      // Don't close the dialog, just show the image picker options
 
       // Show a loading dialog
       showDialog(
@@ -2285,10 +2295,6 @@ class _DashboardPageState extends State<DashboardPage>
       }
 
       if (source == null) {
-        // Reopen the profile dialog if user cancels
-        if (mounted) {
-          _showProfileDialog(context);
-        }
         return;
       }
 
@@ -2330,10 +2336,6 @@ class _DashboardPageState extends State<DashboardPage>
       }
 
       if (pickedFile == null) {
-        // Reopen the profile dialog if user cancels
-        if (mounted) {
-          _showProfileDialog(context);
-        }
         return;
       }
 
@@ -2382,8 +2384,7 @@ class _DashboardPageState extends State<DashboardPage>
               ),
             );
 
-            // Reopen the profile dialog to show updated data
-            _showProfileDialog(context);
+            // Profile dialog will automatically show updated data via StreamBuilder
           }
         } catch (uploadError) {
           // Close the loading dialog
@@ -2409,8 +2410,7 @@ class _DashboardPageState extends State<DashboardPage>
               ),
             );
 
-            // Reopen the profile dialog even if there was an error
-            _showProfileDialog(context);
+            // Profile dialog will remain open
           }
         }
       } else {
@@ -2427,35 +2427,40 @@ class _DashboardPageState extends State<DashboardPage>
             ),
           );
 
-          // Reopen the profile dialog
-          _showProfileDialog(context);
+          // Profile dialog will remain open
         }
       }
     } catch (e) {
       // Make sure any open dialogs are closed
       if (mounted) {
-        Navigator.of(context, rootNavigator: true)
-            .popUntil((route) => route.isFirst);
+        try {
+          Navigator.of(context, rootNavigator: true)
+              .popUntil((route) => route.isFirst);
+        } catch (e) {
+          debugPrint('Error closing dialogs: $e');
+        }
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
-
-        // Reopen the profile dialog after showing error
-        _showProfileDialog(context);
+        try {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        } catch (e) {
+          debugPrint('Error showing snackbar: $e');
+        }
       }
     }
   }
 
   // Show edit mobile phone dialog
   void _showEditMobilePhoneDialog(BuildContext context, String? currentPhone) {
-    final TextEditingController phoneController = TextEditingController(text: currentPhone ?? '');
-    
+    final TextEditingController phoneController =
+        TextEditingController(text: currentPhone ?? '');
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -2486,10 +2491,11 @@ class _DashboardPageState extends State<DashboardPage>
               onPressed: () async {
                 final newPhone = phoneController.text.trim();
                 final currentUser = _authService.currentUser;
-                
+
                 if (currentUser != null) {
                   try {
-                    await _userService.updateUserMobilePhone(currentUser.uid, newPhone);
+                    await _userService.updateUserMobilePhone(
+                        currentUser.uid, newPhone);
                     if (context.mounted) {
                       Navigator.of(context).pop();
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -2498,8 +2504,7 @@ class _DashboardPageState extends State<DashboardPage>
                           backgroundColor: Colors.green,
                         ),
                       );
-                      // Reopen the profile dialog to show updated data
-                      _showProfileDialog(context);
+                      // Profile dialog will automatically show updated data via StreamBuilder
                     }
                   } catch (e) {
                     if (context.mounted) {
@@ -2515,7 +2520,8 @@ class _DashboardPageState extends State<DashboardPage>
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('You must be logged in to update your profile'),
+                        content: Text(
+                            'You must be logged in to update your profile'),
                         backgroundColor: Colors.red,
                       ),
                     );
