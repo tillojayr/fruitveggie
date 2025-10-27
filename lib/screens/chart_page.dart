@@ -538,192 +538,163 @@ class _ChartPageState extends State<ChartPage> {
   }
 
   Widget _buildChartContent() {
-    if (_selectedCrop == null) {
-      return const SizedBox.shrink();
-    }
+    final filteredData = _getFilteredCropData();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(height: 20),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'Ripeness Status for $_selectedCrop',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
+    return Container(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 400,
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: 100,
+                barTouchData: BarTouchData(
+                  enabled: true,
+                  touchTooltipData: BarTouchTooltipData(
+                    tooltipBgColor: Colors.blueGrey.withOpacity(0.8),
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      final data = filteredData[group.x.toInt()];
+                      final isReady = _isReadyForHarvest(data);
+                      final status = isReady ? 'Ready' : 'Not yet ready';
+                      final ripeness = _getRipenessPercentage(data);
+                      final days = _getDaysUntilHarvest(data);
+
+                      return BarTooltipItem(
+                        '$status\n',
+                        const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        children: <TextSpan>[
+                          TextSpan(
+                            text: 'Ripeness: ${ripeness.toStringAsFixed(1)}%\n',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.normal,
+                            ),
+                          ),
+                          TextSpan(
+                            text: 'Harvest in: $days days',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.normal,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  bottomTitles: AxisTitles(
+                    axisNameWidget: const Text(
+                      'Scan Instance',
+                      style: TextStyle(
+                        color: Color(0xff7589a2),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: _bottomTitles,
+                      reservedSize: 38,
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 40,
+                      getTitlesWidget: (value, meta) {
+                        if (value % 20 == 0) {
+                          return Text(
+                            '${value.toInt()}%',
+                            style: const TextStyle(
+                              color: Color(0xff7589a2),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                            textAlign: TextAlign.left,
+                          );
+                        }
+                        return Container();
+                      },
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(
+                  show: false,
+                ),
+                gridData: FlGridData(
+                  show: true,
+                  checkToShowHorizontalLine: (value) => value % 10 == 0,
+                  getDrawingHorizontalLine: (value) {
+                    return const FlLine(
+                      color: Color(0xff37434d),
+                      strokeWidth: 1,
+                    );
+                  },
+                  drawVerticalLine: false,
+                ),
+                barGroups: filteredData.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final data = entry.value;
+                  final isReady = _isReadyForHarvest(data);
+                  final ripeness = _getRipenessPercentage(data);
+
+                  return BarChartGroupData(
+                    x: index,
+                    barRods: [
+                      BarChartRodData(
+                        toY: ripeness,
+                        color: isReady ? Colors.green : Colors.red,
+                        width: 22,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ],
+                  );
+                }).toList(),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 5),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'Daily ripeness progression until harvest',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey.shade600,
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        _buildRipenessChart(),
-        const SizedBox(height: 30),
-        _buildRipenessLegend(),
-      ],
+        ],
+      ),
     );
   }
 
-  Widget _buildRipenessChart() {
-    if (_selectedCrop == null) return const SizedBox.shrink();
-
-    // Get all data for the selected crop
-    final cropInstances = _cropData.entries
-        .where((entry) => entry.value.first['produceName'] == _selectedCrop)
+  Widget _bottomTitles(double value, TitleMeta meta) {
+    final titles = _getFilteredCropData()
+        .asMap()
+        .entries
+        .map((e) => '${e.key + 1}')
         .toList();
 
-    if (cropInstances.isEmpty) return const SizedBox.shrink();
-
-    // Calculate daily ripeness progression for each instance
-    List<Map<String, dynamic>> chartData = [];
-    for (var instance in cropInstances) {
-      final data = instance.value.first;
-      final daysUntilHarvest = data['daysUntilHarvest'] as int;
-      final currentRipenessPercentage = data['ripenessPercentage'] as double;
-
-      // Create data points for each day from 1 to daysUntilHarvest
-      for (int day = 1; day <= daysUntilHarvest; day++) {
-        // Calculate ripeness percentage for this specific day
-        // Ripeness increases over time, starting from current percentage
-        final ripenessForDay = _calculateRipenessForDay(currentRipenessPercentage, day, daysUntilHarvest);
-        
-        // Determine ripeness status based on percentage
-        String ripenessStatus = _getRipenessStatus(ripenessForDay, daysUntilHarvest - day);
-        
-        chartData.add({
-          'day': day,
-          'ripenessStatus': ripenessStatus,
-          'ripenessPercentage': ripenessForDay,
-          'daysUntilHarvest': daysUntilHarvest,
-          'instanceName': instance.key,
-        });
-      }
+    if (value.toInt() >= titles.length) {
+      return Container();
     }
 
-    debugPrint('Building ripeness chart with ${chartData.length} entries');
-    return Container(
-      height: 300,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
-      child: BarChart(
-        BarChartData(
-          alignment: BarChartAlignment.spaceAround,
-          maxY: 100, // Ripeness percentage scale 0-100
-          barTouchData: BarTouchData(
-            enabled: true,
-            touchTooltipData: BarTouchTooltipData(
-              tooltipBgColor: Colors.blueGrey.withOpacity(0.8),
-              getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                if (groupIndex < chartData.length) {
-                  final data = chartData[groupIndex];
-                  return BarTooltipItem(
-                    'Day ${data['day']}\n${data['ripenessStatus']}\n${data['ripenessPercentage'].toStringAsFixed(1)}%',
-                    const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  );
-                }
-                return null;
-              },
-            ),
-          ),
-          titlesData: FlTitlesData(
-            show: true,
-            bottomTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                getTitlesWidget: (value, meta) {
-                  if (value >= 0 && value < chartData.length) {
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        'Day ${chartData[value.toInt()]['day']}',
-                        style: TextStyle(
-                          color: Colors.grey.shade700,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
-                      ),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-                reservedSize: 42,
-              ),
-            ),
-            leftTitles: AxisTitles(
-              sideTitles: SideTitles(
-                showTitles: true,
-                reservedSize: 40,
-                getTitlesWidget: (value, meta) {
-                  if (value % 10 == 0) {
-                    return Text(
-                      '${value.toInt()}%',
-                      style: const TextStyle(fontSize: 10),
-                    );
-                  }
-                  return const SizedBox.shrink();
-                },
-              ),
-            ),
-            topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-            rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          ),
-          borderData: FlBorderData(show: false),
-          barGroups: List.generate(
-            chartData.length,
-            (index) {
-              final data = chartData[index];
-              final ripenessPercentage = data['ripenessPercentage'] as double;
-
-              // ADD DEBUG PRINT HERE:
-              debugPrint(
-                  'Bar Chart - Index: $index, Y-axis Value: $ripenessPercentage%');
-
-              return BarChartGroupData(
-                x: index,
-                barRods: [
-                  BarChartRodData(
-                    toY: ripenessPercentage,
-                    gradient: LinearGradient(
-                      colors: [
-                        _getColorForRipenessStatus(data['ripenessStatus']),
-                        _getColorForRipenessStatus(data['ripenessStatus'])
-                            .withOpacity(0.6),
-                      ],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                    ),
-                    width: 20,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ],
-              );
-            },
-          ),
-          gridData: FlGridData(
-            show: true,
-            horizontalInterval: 10,
-            getDrawingHorizontalLine: (value) => FlLine(
-              color: Colors.grey.shade300,
-              strokeWidth: 1,
-              dashArray: [5, 5],
-            ),
-          ),
-        ),
+    final Widget text = Text(
+      titles[value.toInt()],
+      style: const TextStyle(
+        color: Color(0xff7589a2),
+        fontWeight: FontWeight.bold,
+        fontSize: 14,
       ),
+    );
+
+    return SideTitleWidget(
+      axisSide: meta.axisSide,
+      space: 10,
+      child: text,
     );
   }
 
