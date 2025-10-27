@@ -401,128 +401,131 @@ class PdfService {
     final chartWidth = 500.0;
     final padding = 40.0;
     
-    return pw.Container(
-      height: chartHeight + padding * 2,
-      width: chartWidth,
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey300),
-      ),
-      child: pw.Stack(
-        children: [
-          // Y-axis labels (0, 20, 40, 60, 80, 100)
-          pw.Positioned(
-            left: 0,
-            top: padding,
-            child: pw.Container(
-              width: 30,
-              height: chartHeight,
-              child: pw.Column(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('100', style: pw.TextStyle(font: font, fontSize: 10)),
-                  pw.Text('80', style: pw.TextStyle(font: font, fontSize: 10)),
-                  pw.Text('60', style: pw.TextStyle(font: font, fontSize: 10)),
-                  pw.Text('40', style: pw.TextStyle(font: font, fontSize: 10)),
-                  pw.Text('20', style: pw.TextStyle(font: font, fontSize: 10)),
-                  pw.Text('0', style: pw.TextStyle(font: font, fontSize: 10)),
-                ],
-              ),
-            ),
+    return pw.Column(
+      children: [
+        pw.Container(
+          height: chartHeight + padding * 2,
+          width: chartWidth,
+          decoration: pw.BoxDecoration(
+            border: pw.Border.all(color: PdfColors.grey300),
           ),
-          
-          // Grid lines
-          pw.Positioned(
-            left: 30,
-            top: padding,
-            child: pw.Container(
-              width: chartWidth - 60,
-              height: chartHeight,
-              child: pw.Column(
-                children: List.generate(6, (index) {
-                  return pw.Expanded(
-                    child: pw.Container(
-                      decoration: pw.BoxDecoration(
-                        border: pw.Border(
-                          bottom: pw.BorderSide(
-                            color: PdfColors.grey300,
-                            width: 0.5,
-                            style: pw.BorderStyle.dashed,
+          child: pw.Stack(
+            children: [
+              // Y-axis labels (0, 20, 40, 60, 80, 100)
+              pw.Positioned(
+                left: 0,
+                top: padding,
+                child: pw.Container(
+                  width: 30,
+                  height: chartHeight,
+                  child: pw.Column(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text('100', style: pw.TextStyle(font: font, fontSize: 10)),
+                      pw.Text('80', style: pw.TextStyle(font: font, fontSize: 10)),
+                      pw.Text('60', style: pw.TextStyle(font: font, fontSize: 10)),
+                      pw.Text('40', style: pw.TextStyle(font: font, fontSize: 10)),
+                      pw.Text('20', style: pw.TextStyle(font: font, fontSize: 10)),
+                      pw.Text('0', style: pw.TextStyle(font: font, fontSize: 10)),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Grid lines
+              pw.Positioned(
+                left: 30,
+                top: padding,
+                child: pw.Container(
+                  width: chartWidth - 60,
+                  height: chartHeight,
+                  child: pw.Column(
+                    children: List.generate(6, (index) {
+                      return pw.Expanded(
+                        child: pw.Container(
+                          decoration: pw.BoxDecoration(
+                            border: pw.Border(
+                              bottom: pw.BorderSide(
+                                color: PdfColors.grey300,
+                                width: 0.5,
+                                style: pw.BorderStyle.dashed,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  );
-                }),
+                      );
+                    }),
+                  ),
+                ),
               ),
-            ),
-          ),
-          
-          // Bars
-          pw.Positioned(
-            left: 30,
-            top: padding,
-            child: pw.Container(
-              width: chartWidth - 60,
-              height: chartHeight,
-              child: pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.end,
-                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-                children: List.generate(cropData.length, (index) {
-                  final entry = cropData[index];
-                  final data = entry.value.first;
-                  final ripenessPercentage = data['ripenessPercentage'] as double;
-                  final daysUntilHarvest = data['daysUntilHarvest'] as int;
-                  final weeks = (daysUntilHarvest / 7).ceil().clamp(1, 4);
-                  
-                  final barHeight = (ripenessPercentage / 100) * chartHeight;
-                  
-                  return pw.Column(
-                    mainAxisAlignment: pw.MainAxisAlignment.end,
-                    children: [
-                      pw.Container(
-                        height: barHeight,
-                        width: barWidth,
-                        decoration: pw.BoxDecoration(
-                          color: _getPdfColorForRipeness(ripenessPercentage),
-                          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+              
+              // Bars
+              pw.Positioned(
+                left: 30,
+                top: padding,
+                child: pw.Container(
+                  width: chartWidth - 60,
+                  height: chartHeight,
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                    children: List.generate(cropData.length, (index) {
+                      final entry = cropData[index];
+                      final data = entry.value.first;
+                      final ripenessPercentage = data['ripenessPercentage'] as double;
+                      final isReady = data['isReady'] as bool? ?? false;
+                      
+                      final barHeight = (ripenessPercentage / 100) * chartHeight;
+                      
+                      return pw.Column(
+                        mainAxisAlignment: pw.MainAxisAlignment.end,
+                        children: [
+                          pw.Container(
+                            height: barHeight,
+                            width: barWidth,
+                            decoration: pw.BoxDecoration(
+                              color: isReady ? PdfColors.green : PdfColors.red,
+                              borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                  ),
+                ),
+              ),
+              
+              // X-axis labels (1, 2, 3, etc.)
+              pw.Positioned(
+                left: 30,
+                top: padding + chartHeight + 5,
+                child: pw.Container(
+                  width: chartWidth - 60,
+                  child: pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                    children: List.generate(cropData.length, (index) {
+                      return pw.Container(
+                        width: barWidth + 20,
+                        child: pw.Text(
+                          '${index + 1}',
+                          textAlign: pw.TextAlign.center,
+                          style: pw.TextStyle(font: font, fontSize: 10),
                         ),
-                      ),
-                    ],
-                  );
-                }),
+                      );
+                    }),
+                  ),
+                ),
               ),
-            ),
+              
+            ],
           ),
-          
-          // X-axis labels (Week 1, Week 2, etc.)
-          pw.Positioned(
-            left: 30,
-            top: padding + chartHeight + 5,
-            child: pw.Container(
-              width: chartWidth - 60,
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-                children: List.generate(cropData.length, (index) {
-                  final entry = cropData[index];
-                  final data = entry.value.first;
-                  final daysUntilHarvest = data['daysUntilHarvest'] as int;
-                  final weeks = (daysUntilHarvest / 7).ceil().clamp(1, 4);
-                  
-                  return pw.Container(
-                    width: barWidth + 20,
-                    child: pw.Text(
-                      'Week $weeks',
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(font: font, fontSize: 10),
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ),
-          
-        ],
-      ),
+        ),
+        pw.SizedBox(height: 10),
+        pw.Text(
+          'Scan Instance',
+          style: pw.TextStyle(font: fontBold, fontSize: 12, color: PdfColors.grey700),
+        ),
+      ],
     );
   }
   
@@ -536,9 +539,8 @@ class PdfService {
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
           children: [
-            _buildLegendItem('Not Yet Ready (0-69%)', PdfColors.green900, font),
-            _buildLegendItem('Almost Ready (70-99%)', PdfColors.amber, font),
-            _buildLegendItem('Ready to Harvest (100%)', PdfColors.orange, font),
+            _buildLegendItem('Not Yet Ready', PdfColors.red, font),
+            _buildLegendItem('Ready to Harvest', PdfColors.green, font),
           ],
         ),
       ],
@@ -568,26 +570,23 @@ class PdfService {
             ),
             pw.Padding(
               padding: const pw.EdgeInsets.all(8),
-              child: pw.Text('Weeks', style: pw.TextStyle(font: fontBold)),
-            ),
-            pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
               child: pw.Text('Status', style: pw.TextStyle(font: fontBold)),
             ),
           ],
         ),
-        ...cropData.map((entry) {
-          final data = entry.value.first;
+        ...cropData.asMap().entries.map((entry) {
+          final index = entry.key;
+          final data = entry.value.value.first;
           final ripenessPercentage = data['ripenessPercentage'] as double;
           final daysUntilHarvest = data['daysUntilHarvest'] as int;
-          final weeks = (daysUntilHarvest / 7).ceil().clamp(1, 4);
-          final status = _getRipenessStatusText(ripenessPercentage, daysUntilHarvest);
+          final isReady = data['isReady'] as bool? ?? false;
+          final status = _getRipenessStatusText(ripenessPercentage, daysUntilHarvest, isReady);
           
           return pw.TableRow(
             children: [
               pw.Padding(
                 padding: const pw.EdgeInsets.all(8),
-                child: pw.Text(entry.key, style: pw.TextStyle(font: font)),
+                child: pw.Text('${index + 1}', style: pw.TextStyle(font: font)),
               ),
               pw.Padding(
                 padding: const pw.EdgeInsets.all(8),
@@ -596,10 +595,6 @@ class PdfService {
               pw.Padding(
                 padding: const pw.EdgeInsets.all(8),
                 child: pw.Text('$daysUntilHarvest', style: pw.TextStyle(font: font)),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Text('$weeks', style: pw.TextStyle(font: font)),
               ),
               pw.Padding(
                 padding: const pw.EdgeInsets.all(8),
@@ -620,13 +615,7 @@ class PdfService {
   }
   
   // Helper method to get ripeness status text
-  String _getRipenessStatusText(double ripenessPercentage, int daysUntilHarvest) {
-    if (ripenessPercentage >= 100 || daysUntilHarvest <= 0) {
-      return 'Ready to Harvest';
-    } else if (ripenessPercentage >= 70 || daysUntilHarvest <= 3) {
-      return 'Almost Ready';
-    } else {
-      return 'Not Yet Ready';
-    }
+  String _getRipenessStatusText(double ripenessPercentage, int daysUntilHarvest, bool isReady) {
+    return isReady ? 'Ready to Harvest' : 'Not Yet Ready';
   }
 }

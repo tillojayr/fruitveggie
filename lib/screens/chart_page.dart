@@ -402,7 +402,12 @@ class _ChartPageState extends State<ChartPage> {
       // Get data for the selected crop only
       final selectedCropData = _cropData.entries
           .where((entry) => entry.value.first['produceName'] == _selectedCrop)
-          .toList();
+          .map((entry) {
+        var newEntry =
+            Map<String, dynamic>.from(entry.value.first); // Create a copy
+        newEntry['isReady'] = _isReadyForHarvest(newEntry);
+        return MapEntry(entry.key, [newEntry]);
+      }).toList();
 
       final File? pdfFile = await _pdfService.generateRipenessChartPdf(
         cropData: selectedCropData,
