@@ -76,10 +76,10 @@ class PdfService {
               pw.SizedBox(height: 20),
               
               // Chart title
-              pw.Text('Ripeness Status Chart',
+              pw.Text('Daily Ripeness Progression Chart',
                   style: pw.TextStyle(font: fontBold, fontSize: 18)),
               pw.SizedBox(height: 5),
-              pw.Text('Based on ripeness percentage and harvest timeline',
+              pw.Text('Daily ripeness progression until harvest',
                   style: pw.TextStyle(font: font, fontSize: 14, color: PdfColors.grey700)),
               pw.SizedBox(height: 20),
               
@@ -396,10 +396,50 @@ class PdfService {
 
   // Helper method to build the ripeness bar chart in the PDF
   pw.Widget _buildRipenessBarChart(List<MapEntry<String, List<Map<String, dynamic>>>> cropData, pw.Font font, pw.Font fontBold) {
-    final barWidth = 20.0;
+    if (cropData.isEmpty) return pw.SizedBox();
+    
+    // Calculate daily ripeness progression for each instance (same logic as chart page)
+    List<Map<String, dynamic>> chartData = [];
+    for (var instance in cropData) {
+      final data = instance.value.first;
+      final daysUntilHarvest = data['daysUntilHarvest'] as int;
+      final currentRipenessPercentage = data['ripenessPercentage'] as double;
+
+      // Create data points for each day from 1 to daysUntilHarvest
+      for (int day = 1; day <= daysUntilHarvest; day++) {
+        // Calculate ripeness percentage for this specific day
+        final ripenessForDay = _calculateRipenessForDay(
+            currentRipenessPercentage, day, daysUntilHarvest);
+
+        // Determine ripeness status based on percentage
+        String ripenessStatus =
+            _getRipenessStatus(ripenessForDay, daysUntilHarvest - day);
+
+        chartData.add({
+          'day': day,
+          'ripenessStatus': ripenessStatus,
+          'ripenessPercentage': ripenessForDay,
+          'daysUntilHarvest': daysUntilHarvest,
+          'instanceName': instance.key,
+        });
+      }
+    }
+    
+    final barWidth = 8.0; // Smaller bars for daily data
     final chartHeight = 300.0;
     final chartWidth = 500.0;
     final padding = 40.0;
+    final maxBarsToShow = 30; // Limit bars to prevent overcrowding
+    
+    // If we have too many bars, sample them
+    List<Map<String, dynamic>> displayData = chartData;
+    if (chartData.length > maxBarsToShow) {
+      final step = (chartData.length / maxBarsToShow).ceil();
+      displayData = List.generate(maxBarsToShow, (index) {
+        final originalIndex = index * step;
+        return chartData[originalIndex.clamp(0, chartData.length - 1)];
+      });
+    }
     
     return pw.Container(
       height: chartHeight + padding * 2,
@@ -467,12 +507,10 @@ class PdfService {
               child: pw.Row(
                 crossAxisAlignment: pw.CrossAxisAlignment.end,
                 mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-                children: List.generate(cropData.length, (index) {
-                  final entry = cropData[index];
-                  final data = entry.value.first;
+                children: List.generate(displayData.length, (index) {
+                  final data = displayData[index];
                   final ripenessPercentage = data['ripenessPercentage'] as double;
-                  final daysUntilHarvest = data['daysUntilHarvest'] as int;
-                  final weeks = (daysUntilHarvest / 7).ceil().clamp(1, 4);
+                  final ripenessStatus = data['ripenessStatus'] as String;
                   
                   final barHeight = (ripenessPercentage / 100) * chartHeight;
                   
@@ -483,7 +521,7 @@ class PdfService {
                         height: barHeight,
                         width: barWidth,
                         decoration: pw.BoxDecoration(
-                          color: _getPdfColorForRipeness(ripenessPercentage),
+                          color: _getPdfColorForRipenessStatus(ripenessStatus),
                           borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
                         ),
                       ),
@@ -494,7 +532,7 @@ class PdfService {
             ),
           ),
           
-          // X-axis labels (Week 1, Week 2, etc.)
+          // X-axis labels (Day numbers)
           pw.Positioned(
             left: 30,
             top: padding + chartHeight + 5,
@@ -502,20 +540,23 @@ class PdfService {
               width: chartWidth - 60,
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
-                children: List.generate(cropData.length, (index) {
-                  final entry = cropData[index];
-                  final data = entry.value.first;
-                  final daysUntilHarvest = data['daysUntilHarvest'] as int;
-                  final weeks = (daysUntilHarvest / 7).ceil().clamp(1, 4);
+                children: List.generate(displayData.length, (index) {
+                  final data = displayData[index];
+                  final day = data['day'] as int;
                   
-                  return pw.Container(
-                    width: barWidth + 20,
-                    child: pw.Text(
-                      'Week $weeks',
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(font: font, fontSize: 10),
-                    ),
-                  );
+                  // Only show every 5th day label to avoid overcrowding
+                  if (day % 5 == 0 || day == 1) {
+                    return pw.Container(
+                      width: barWidth + 10,
+                      child: pw.Text(
+                        '$day',
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(font: font, fontSize: 8),
+                      ),
+                    );
+                  } else {
+                    return pw.Container(width: barWidth + 10);
+                  }
                 }),
               ),
             ),
@@ -536,9 +577,9 @@ class PdfService {
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
           children: [
-            _buildLegendItem('Not Yet Ready (0-69%)', PdfColors.green900, font),
+            _buildLegendItem('Not Yet Ready (0-69%)', PdfColors.red800, font),
             _buildLegendItem('Almost Ready (70-99%)', PdfColors.amber, font),
-            _buildLegendItem('Ready to Harvest (100%)', PdfColors.orange, font),
+            _buildLegendItem('Ready to Harvest (100%)', PdfColors.green, font),
           ],
         ),
       ],
@@ -548,66 +589,119 @@ class PdfService {
   
   // Helper method to build a ripeness data table in the PDF
   pw.Widget _buildRipenessDataTable(List<MapEntry<String, List<Map<String, dynamic>>>> cropData, pw.Font font, pw.Font fontBold) {
-    return pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.grey300),
+    if (cropData.isEmpty) return pw.SizedBox();
+    
+    // Get the first instance for summary data
+    final firstInstance = cropData.first.value.first;
+    final ripenessPercentage = firstInstance['ripenessPercentage'] as double;
+    final daysUntilHarvest = firstInstance['daysUntilHarvest'] as int;
+    final harvestDate = firstInstance['harvestDate'];
+    
+    // Calculate scan date (harvest date minus days until harvest)
+    DateTime? scanDateTime;
+    DateTime? harvestDateTime;
+    
+    if (harvestDate is Timestamp) {
+      harvestDateTime = harvestDate.toDate();
+      scanDateTime = harvestDateTime.subtract(Duration(days: daysUntilHarvest));
+    } else if (harvestDate is DateTime) {
+      harvestDateTime = harvestDate;
+      scanDateTime = harvestDateTime.subtract(Duration(days: daysUntilHarvest));
+    }
+    
+    String scanDateStr = 'N/A';
+    String harvestDateStr = 'N/A';
+    
+    if (scanDateTime != null) {
+      scanDateStr = '${scanDateTime.month}/${scanDateTime.day}/${scanDateTime.year}';
+    }
+    if (harvestDateTime != null) {
+      harvestDateStr = '${harvestDateTime.month}/${harvestDateTime.day}/${harvestDateTime.year}';
+    }
+    
+    return pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.TableRow(
-          decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+        pw.Text('Summary Information', style: pw.TextStyle(font: fontBold, fontSize: 16)),
+        pw.SizedBox(height: 10),
+        pw.Table(
+          border: pw.TableBorder.all(color: PdfColors.grey300),
           children: [
-            pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
-              child: pw.Text('Instance', style: pw.TextStyle(font: fontBold)),
+            pw.TableRow(
+              decoration: const pw.BoxDecoration(color: PdfColors.grey200),
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Property', style: pw.TextStyle(font: fontBold)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Value', style: pw.TextStyle(font: fontBold)),
+                ),
+              ],
             ),
-            pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
-              child: pw.Text('Ripeness %', style: pw.TextStyle(font: fontBold)),
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Current Ripeness', style: pw.TextStyle(font: font)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('${ripenessPercentage.toStringAsFixed(1)}%', style: pw.TextStyle(font: font)),
+                ),
+              ],
             ),
-            pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
-              child: pw.Text('Days Until Harvest', style: pw.TextStyle(font: fontBold)),
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Days Until Harvest', style: pw.TextStyle(font: font)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('$daysUntilHarvest days', style: pw.TextStyle(font: font)),
+                ),
+              ],
             ),
-            pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
-              child: pw.Text('Weeks', style: pw.TextStyle(font: fontBold)),
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Scan Date', style: pw.TextStyle(font: font)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text(scanDateStr, style: pw.TextStyle(font: font)),
+                ),
+              ],
             ),
-            pw.Padding(
-              padding: const pw.EdgeInsets.all(8),
-              child: pw.Text('Status', style: pw.TextStyle(font: fontBold)),
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Harvest Date', style: pw.TextStyle(font: font)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text(harvestDateStr, style: pw.TextStyle(font: font)),
+                ),
+              ],
+            ),
+            pw.TableRow(
+              children: [
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text('Status', style: pw.TextStyle(font: font)),
+                ),
+                pw.Padding(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Text(_getRipenessStatusText(ripenessPercentage, daysUntilHarvest), style: pw.TextStyle(font: font)),
+                ),
+              ],
             ),
           ],
         ),
-        ...cropData.map((entry) {
-          final data = entry.value.first;
-          final ripenessPercentage = data['ripenessPercentage'] as double;
-          final daysUntilHarvest = data['daysUntilHarvest'] as int;
-          final weeks = (daysUntilHarvest / 7).ceil().clamp(1, 4);
-          final status = _getRipenessStatusText(ripenessPercentage, daysUntilHarvest);
-          
-          return pw.TableRow(
-            children: [
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Text(entry.key, style: pw.TextStyle(font: font)),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Text('${ripenessPercentage.toStringAsFixed(1)}%', style: pw.TextStyle(font: font)),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Text('$daysUntilHarvest', style: pw.TextStyle(font: font)),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Text('$weeks', style: pw.TextStyle(font: font)),
-              ),
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(8),
-                child: pw.Text(status, style: pw.TextStyle(font: font)),
-              ),
-            ],
-          );
-        }).toList(),
       ],
     );
   }
@@ -627,6 +721,45 @@ class PdfService {
       return 'Almost Ready';
     } else {
       return 'Not Yet Ready';
+    }
+  }
+
+  // Helper method to calculate ripeness for a specific day (same logic as chart page)
+  double _calculateRipenessForDay(double currentRipeness, int day, int totalDays) {
+    // Calculate how much ripeness should increase per day
+    // Start from current ripeness and reach 100% by harvest day
+    final remainingRipeness = 100.0 - currentRipeness;
+    final ripenessIncreasePerDay = remainingRipeness / totalDays;
+
+    // Calculate ripeness for this specific day
+    final ripenessForDay = currentRipeness + (ripenessIncreasePerDay * day);
+
+    // Ensure it doesn't exceed 100%
+    return ripenessForDay.clamp(0.0, 100.0);
+  }
+
+  // Helper method to get ripeness status (same logic as chart page)
+  String _getRipenessStatus(double ripenessPercentage, int daysUntilHarvest) {
+    if (ripenessPercentage >= 100 || daysUntilHarvest <= 0) {
+      return 'Ready to Harvest';
+    } else if (ripenessPercentage >= 70 || daysUntilHarvest <= 3) {
+      return 'Almost Ready';
+    } else {
+      return 'Not Yet Ready';
+    }
+  }
+
+  // Helper method to get color for ripeness status (matching chart page colors)
+  PdfColor _getPdfColorForRipenessStatus(String ripenessStatus) {
+    switch (ripenessStatus) {
+      case 'Not Yet Ready':
+        return PdfColors.red800; // Red - matches Color(0xFFD32F2F)
+      case 'Almost Ready':
+        return PdfColors.amber; // Amber - matches Color(0xFFFFB300)
+      case 'Ready to Harvest':
+        return PdfColors.green; // Green - matches Color(0xFF4CAF50)
+      default:
+        return PdfColors.green900;
     }
   }
 }
