@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart'; // Add for compute
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'dart:async'; // Add import for TimeoutException
 import 'dart:convert'; // Add import for Base64 encoding/decoding
 import 'camera_page.dart';
@@ -21,9 +21,8 @@ import 'all_harvests_page.dart';
 import 'chart_page.dart'; // Add import for chart page
 import '../utils/custom_route.dart'; // Add import for custom slide animation
 import 'login_page.dart';
-// Add import for AppTheme
 
-// Skeleton loading indicator widgets
+// Add import for AppTheme
 class SkeletonWidget extends StatelessWidget {
   final double height;
   final double width;
@@ -976,8 +975,11 @@ class _DashboardPageState extends State<DashboardPage>
             }
           }
 
+          if (kIsWeb == false) {
+            normalizedPath = normalizedPath.replaceAll('file://', '');
+          }
           // Handle specific mobile platform path issues
-          if (Platform.isAndroid) {
+          else if (Platform.isAndroid) {
             // For Android, handle content:// URIs and other special cases
             if (path.startsWith('content://') || path.startsWith('file:///')) {
               print('Android-specific path detected: $path');
@@ -1090,8 +1092,11 @@ class _DashboardPageState extends State<DashboardPage>
           }
         }
 
+        if (kIsWeb) {
+          normalizedPath = normalizedPath.replaceAll('file://', '');
+        }
         // Handle Android and iOS specific paths
-        if (Platform.isAndroid) {
+        else if (Platform.isAndroid) {
           // Special handling for Android content:// URIs
           if (imagePath.startsWith('content://')) {
             try {
@@ -6102,7 +6107,23 @@ class _DashboardPageState extends State<DashboardPage>
       }
 
       // Handle platform-specific paths
-      if (Platform.isAndroid) {
+      if (kIsWeb) {
+        // Web platform - treat as network image
+        imageWidget = CachedNetworkImage(
+          imageUrl: normalizedPath,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: const Color(0xFF2E7D32),
+            ),
+          ),
+          errorWidget: (context, url, error) {
+            debugPrint('Error loading reminder web image: $error');
+            return _buildPlaceholderImage();
+          },
+        );
+      } else if (Platform.isAndroid) {
         if (normalizedPath.startsWith('content://') ||
             normalizedPath.startsWith('file:///')) {
           try {
@@ -6130,51 +6151,72 @@ class _DashboardPageState extends State<DashboardPage>
         // iOS-specific handling if needed
       }
 
-      // Local file image - check if file exists first
-      // debugPrint('Checking reminder image file: $normalizedPath');
-      final file = File(normalizedPath);
-      final fileExists = file.existsSync();
-
-      if (fileExists) {
-        try {
-          imageWidget = Image.file(
-            file,
-            fit: BoxFit.cover,
-            errorBuilder: (context, error, stackTrace) {
-              debugPrint('Error loading reminder file image: $error');
-              return _buildPlaceholderImage();
-            },
-          );
-        } catch (e) {
-          debugPrint('Exception loading reminder image file: $e');
-          imageWidget = _buildPlaceholderImage();
-        }
-      } else {
-        // If the file doesn't exist, try to use it as a network URL
-        // debugPrint(
-        //     'Reminder image file not found, trying as URL: $normalizedPath');
-
-        // Check if it looks like a network URL or storage path
-        if (normalizedPath.contains('://') ||
-            normalizedPath.contains('storage/')) {
-          imageWidget = CachedNetworkImage(
-            imageUrl: normalizedPath,
-            fit: BoxFit.cover,
-            placeholder: (context, url) => Center(
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: const Color(0xFF2E7D32),
-              ),
+      if (kIsWeb) {
+        // Web platform - treat as network image
+        imageWidget = CachedNetworkImage(
+          imageUrl: normalizedPath,
+          fit: BoxFit.cover,
+          placeholder: (context, url) => Center(
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: const Color(0xFF2E7D32),
             ),
-            errorWidget: (context, url, error) {
-              debugPrint('Failed to load reminder as network image: $error');
-              return _buildPlaceholderImage();
-            },
-          );
+          ),
+          errorWidget: (context, url, error) {
+            debugPrint('Error loading reminder web image: $error');
+            return _buildPlaceholderImage();
+          },
+        );
+        // Cache and return early
+        _reminderImageCache[cacheKey] = imageWidget;
+        return imageWidget;
+      } else {
+        // Local file image - check if file exists first
+        // debugPrint('Checking reminder image file: $normalizedPath');
+        final file = File(normalizedPath);
+        final fileExists = file.existsSync();
+
+        if (fileExists) {
+          try {
+            imageWidget = Image.file(
+              file,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                debugPrint('Error loading reminder file image: $error');
+                return _buildPlaceholderImage();
+              },
+            );
+          } catch (e) {
+            debugPrint('Exception loading reminder image file: $e');
+            imageWidget = _buildPlaceholderImage();
+          }
         } else {
-          // Not a valid path of any kind
-          debugPrint('Invalid reminder image path: $normalizedPath');
-          imageWidget = _buildPlaceholderImage();
+          // If the file doesn't exist, try to use it as a network URL
+          // debugPrint(
+          //     'Reminder image file not found, trying as URL: $normalizedPath');
+
+          // Check if it looks like a network URL or storage path
+          if (normalizedPath.contains('://') ||
+              normalizedPath.contains('storage/')) {
+            imageWidget = CachedNetworkImage(
+              imageUrl: normalizedPath,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => Center(
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: const Color(0xFF2E7D32),
+                ),
+              ),
+              errorWidget: (context, url, error) {
+                debugPrint('Failed to load reminder as network image: $error');
+                return _buildPlaceholderImage();
+              },
+            );
+          } else {
+            // Not a valid path of any kind
+            debugPrint('Invalid reminder image path: $normalizedPath');
+            imageWidget = _buildPlaceholderImage();
+          }
         }
       }
     }

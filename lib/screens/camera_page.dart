@@ -3,7 +3,7 @@ import 'package:camera/camera.dart';
 import 'result_page.dart';
 import 'package:image_picker/image_picker.dart';
 import '../utils/app_theme.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../utils/custom_route.dart';
 
 class CameraPage extends StatefulWidget {

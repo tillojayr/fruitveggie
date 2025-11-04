@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 
 class AllScansPage extends StatefulWidget {
   final List<Map<String, dynamic>> scans;

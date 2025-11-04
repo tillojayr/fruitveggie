@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -19,15 +19,15 @@ class PdfService {
     try {
       // Create a PDF document
       final pdf = pw.Document();
-      
+
       // Load fonts
       final font = await PdfGoogleFonts.nunitoRegular();
       final fontBold = await PdfGoogleFonts.nunitoBold();
-      
+
       // Load images
       final logoData = await rootBundle.load('assets/images/logo.png');
       final ustpData = await rootBundle.load('assets/images/USTP.jpg');
-      
+
       // Create header with logos
       final header = pw.Header(
         level: 0,
@@ -48,11 +48,13 @@ class PdfService {
                 pw.SizedBox(height: 5),
                 pw.Text(
                   'Crop: $selectedCrop',
-                  style: pw.TextStyle(font: font, fontSize: 16, color: PdfColors.grey700),
+                  style: pw.TextStyle(
+                      font: font, fontSize: 16, color: PdfColors.grey700),
                 ),
                 pw.Text(
                   DateFormat('MMM dd, yyyy').format(DateTime.now()),
-                  style: pw.TextStyle(font: font, fontSize: 14, color: PdfColors.grey700),
+                  style: pw.TextStyle(
+                      font: font, fontSize: 14, color: PdfColors.grey700),
                 ),
               ],
             ),
@@ -63,7 +65,7 @@ class PdfService {
           ],
         ),
       );
-      
+
       // Add content to PDF
       pdf.addPage(
         pw.MultiPage(
@@ -72,25 +74,27 @@ class PdfService {
             return [
               header,
               pw.SizedBox(height: 20),
-              pw.Text(description, style: pw.TextStyle(font: font, fontSize: 16)),
+              pw.Text(description,
+                  style: pw.TextStyle(font: font, fontSize: 16)),
               pw.SizedBox(height: 20),
-              
+
               // Chart title
               pw.Text('Daily Ripeness Progression Chart',
                   style: pw.TextStyle(font: fontBold, fontSize: 18)),
               pw.SizedBox(height: 5),
               pw.Text('Daily ripeness progression until harvest',
-                  style: pw.TextStyle(font: font, fontSize: 14, color: PdfColors.grey700)),
+                  style: pw.TextStyle(
+                      font: font, fontSize: 14, color: PdfColors.grey700)),
               pw.SizedBox(height: 20),
-              
+
               // Create ripeness chart
               _buildRipenessBarChart(cropData, font, fontBold),
               pw.SizedBox(height: 20),
-              
+
               // Legend
               _buildRipenessLegend(font, fontBold),
               pw.SizedBox(height: 30),
-              
+
               // Tabular data
               _buildRipenessDataTable(cropData, font, fontBold),
             ];
@@ -101,21 +105,23 @@ class PdfService {
               margin: const pw.EdgeInsets.only(top: 20),
               child: pw.Text(
                 'Page ${context.pageNumber} of ${context.pagesCount}',
-                style: pw.TextStyle(font: font, fontSize: 12, color: PdfColors.grey700),
+                style: pw.TextStyle(
+                    font: font, fontSize: 12, color: PdfColors.grey700),
               ),
             );
           },
         ),
       );
-      
+
       // Save the PDF to a file
       final output = await getTemporaryDirectory();
-      final file = File('${output.path}/ripeness_chart_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf');
+      final file = File(
+          '${output.path}/ripeness_chart_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf');
       await file.writeAsBytes(await pdf.save());
-      
+
       return file;
     } catch (e) {
-      debugPrint('Error generating PDF: $e');
+      debugPrint('Error generating PDFdd: $e');
       return null;
     }
   }
@@ -129,15 +135,15 @@ class PdfService {
     try {
       // Create a PDF document
       final pdf = pw.Document();
-      
+
       // Load font
       final font = await PdfGoogleFonts.nunitoRegular();
       final fontBold = await PdfGoogleFonts.nunitoBold();
-      
+
       // Create a sorted list of entries
       final entries = cropHarvestDays.entries.toList()
         ..sort((a, b) => a.value.compareTo(b.value));
-      
+
       // Create header
       final header = pw.Header(
         level: 0,
@@ -147,12 +153,13 @@ class PdfService {
             pw.Text(title, style: pw.TextStyle(font: fontBold, fontSize: 24)),
             pw.Text(
               DateFormat('MMM dd, yyyy').format(DateTime.now()),
-              style: pw.TextStyle(font: font, fontSize: 16, color: PdfColors.grey700),
+              style: pw.TextStyle(
+                  font: font, fontSize: 16, color: PdfColors.grey700),
             ),
           ],
         ),
       );
-      
+
       // Add content to PDF
       pdf.addPage(
         pw.MultiPage(
@@ -161,25 +168,27 @@ class PdfService {
             return [
               header,
               pw.SizedBox(height: 8),
-              pw.Text(description, style: pw.TextStyle(font: font, fontSize: 16)),
+              pw.Text(description,
+                  style: pw.TextStyle(font: font, fontSize: 16)),
               pw.SizedBox(height: 20),
-              
+
               // Chart title
               pw.Text('Estimated Days Until Harvest',
                   style: pw.TextStyle(font: fontBold, fontSize: 18)),
               pw.SizedBox(height: 5),
               pw.Text('Based on your scans',
-                  style: pw.TextStyle(font: font, fontSize: 14, color: PdfColors.grey700)),
+                  style: pw.TextStyle(
+                      font: font, fontSize: 14, color: PdfColors.grey700)),
               pw.SizedBox(height: 20),
-              
+
               // Create chart
               _buildHarvestBarChart(entries, font, fontBold),
               pw.SizedBox(height: 20),
-              
+
               // Legend
               _buildColorLegend(font, fontBold),
               pw.SizedBox(height: 30),
-              
+
               // Tabular data
               _buildDataTable(entries, font, fontBold),
             ];
@@ -190,25 +199,27 @@ class PdfService {
               margin: const pw.EdgeInsets.only(top: 20),
               child: pw.Text(
                 'Page ${context.pageNumber} of ${context.pagesCount}',
-                style: pw.TextStyle(font: font, fontSize: 12, color: PdfColors.grey700),
+                style: pw.TextStyle(
+                    font: font, fontSize: 12, color: PdfColors.grey700),
               ),
             );
           },
         ),
       );
-      
+
       // Save the PDF to a file
       final output = await getTemporaryDirectory();
-      final file = File('${output.path}/harvest_chart_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf');
+      final file = File(
+          '${output.path}/harvest_chart_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf');
       await file.writeAsBytes(await pdf.save());
-      
+
       return file;
     } catch (e) {
-      debugPrint('Error generating PDF: $e');
+      debugPrint('Error generating PDFss: $e');
       return null;
     }
   }
-  
+
   /// Open a PDF file
   Future<void> openPdf(File file) async {
     try {
@@ -220,7 +231,7 @@ class PdfService {
       debugPrint('Error opening PDF: $e');
     }
   }
-  
+
   /// Print a PDF file
   Future<void> printPdf(File file) async {
     try {
@@ -231,23 +242,27 @@ class PdfService {
       debugPrint('Error printing PDF: $e');
     }
   }
-  
+
   /// Share the PDF file
   Future<void> sharePdf(File file) async {
     try {
-      await Printing.sharePdf(bytes: await file.readAsBytes(), filename: file.path.split('/').last);
+      await Printing.sharePdf(
+          bytes: await file.readAsBytes(), filename: file.path.split('/').last);
     } catch (e) {
       debugPrint('Error sharing PDF: $e');
     }
   }
 
   // Helper method to build the harvest bar chart in the PDF
-  pw.Widget _buildHarvestBarChart(List<MapEntry<String, int>> entries, pw.Font font, pw.Font fontBold) {
-    final maxValue = entries.isEmpty ? 10.0 : entries.map((e) => e.value).reduce((a, b) => a > b ? a : b) + 2.0;
+  pw.Widget _buildHarvestBarChart(
+      List<MapEntry<String, int>> entries, pw.Font font, pw.Font fontBold) {
+    final maxValue = entries.isEmpty
+        ? 10.0
+        : entries.map((e) => e.value).reduce((a, b) => a > b ? a : b) + 2.0;
     final barWidth = 40.0;
     final chartHeight = 300.0;
     final chartWidth = entries.length * (barWidth + 20.0);
-    
+
     return pw.Container(
       height: chartHeight,
       width: chartWidth,
@@ -257,7 +272,7 @@ class PdfService {
         children: List.generate(entries.length, (index) {
           final entry = entries[index];
           final barHeight = (entry.value / maxValue) * chartHeight;
-          
+
           return pw.Column(
             children: [
               pw.Container(
@@ -265,7 +280,8 @@ class PdfService {
                 width: barWidth,
                 decoration: pw.BoxDecoration(
                   color: _getPdfColorForValue(entry.value),
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                  borderRadius:
+                      const pw.BorderRadius.all(pw.Radius.circular(4)),
                 ),
               ),
               pw.SizedBox(height: 5),
@@ -287,13 +303,14 @@ class PdfService {
       ),
     );
   }
-  
+
   // Helper method to build the color legend in the PDF
   pw.Widget _buildColorLegend(pw.Font font, pw.Font fontBold) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text('Color Legend', style: pw.TextStyle(font: fontBold, fontSize: 16)),
+        pw.Text('Color Legend',
+            style: pw.TextStyle(font: fontBold, fontSize: 16)),
         pw.SizedBox(height: 10),
         pw.Wrap(
           spacing: 20,
@@ -310,7 +327,7 @@ class PdfService {
       ],
     );
   }
-  
+
   // Helper method to build a legend item in the PDF
   pw.Widget _buildLegendItem(String label, PdfColor color, pw.Font font) {
     return pw.Row(
@@ -329,9 +346,10 @@ class PdfService {
       ],
     );
   }
-  
+
   // Helper method to build a data table in the PDF
-  pw.Widget _buildDataTable(List<MapEntry<String, int>> entries, pw.Font font, pw.Font fontBold) {
+  pw.Widget _buildDataTable(
+      List<MapEntry<String, int>> entries, pw.Font font, pw.Font fontBold) {
     return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey300),
       children: [
@@ -340,11 +358,13 @@ class PdfService {
           children: [
             pw.Padding(
               padding: const pw.EdgeInsets.all(8),
-              child: pw.Text('Produce Name', style: pw.TextStyle(font: fontBold)),
+              child:
+                  pw.Text('Produce Name', style: pw.TextStyle(font: fontBold)),
             ),
             pw.Padding(
               padding: const pw.EdgeInsets.all(8),
-              child: pw.Text('Days Until Harvest', style: pw.TextStyle(font: fontBold)),
+              child: pw.Text('Days Until Harvest',
+                  style: pw.TextStyle(font: fontBold)),
             ),
             pw.Padding(
               padding: const pw.EdgeInsets.all(8),
@@ -361,11 +381,13 @@ class PdfService {
               ),
               pw.Padding(
                 padding: const pw.EdgeInsets.all(8),
-                child: pw.Text('${entry.value}', style: pw.TextStyle(font: font)),
+                child:
+                    pw.Text('${entry.value}', style: pw.TextStyle(font: font)),
               ),
               pw.Padding(
                 padding: const pw.EdgeInsets.all(8),
-                child: pw.Text(_getStatusText(entry.value), style: pw.TextStyle(font: font)),
+                child: pw.Text(_getStatusText(entry.value),
+                    style: pw.TextStyle(font: font)),
               ),
             ],
           );
@@ -373,7 +395,7 @@ class PdfService {
       ],
     );
   }
-  
+
   // Helper method to get color for value
   PdfColor _getPdfColorForValue(int value) {
     if (value <= 0) return PdfColors.deepOrange800; // Overripe or Ready
@@ -383,7 +405,7 @@ class PdfService {
     if (value <= 10) return PdfColors.green; // Further
     return PdfColors.green900; // Far
   }
-  
+
   // Helper method to get status text
   String _getStatusText(int value) {
     if (value <= 0) return 'Ready for harvest';
@@ -395,9 +417,12 @@ class PdfService {
   }
 
   // Helper method to build the ripeness bar chart in the PDF
-  pw.Widget _buildRipenessBarChart(List<MapEntry<String, List<Map<String, dynamic>>>> cropData, pw.Font font, pw.Font fontBold) {
+  pw.Widget _buildRipenessBarChart(
+      List<MapEntry<String, List<Map<String, dynamic>>>> cropData,
+      pw.Font font,
+      pw.Font fontBold) {
     if (cropData.isEmpty) return pw.SizedBox();
-    
+
     // Calculate daily ripeness progression for each instance (same logic as chart page)
     List<Map<String, dynamic>> chartData = [];
     for (var instance in cropData) {
@@ -424,13 +449,13 @@ class PdfService {
         });
       }
     }
-    
+
     final barWidth = 8.0; // Smaller bars for daily data
     final chartHeight = 300.0;
     final chartWidth = 500.0;
     final padding = 40.0;
     final maxBarsToShow = 30; // Limit bars to prevent overcrowding
-    
+
     // If we have too many bars, sample them
     List<Map<String, dynamic>> displayData = chartData;
     if (chartData.length > maxBarsToShow) {
@@ -440,7 +465,7 @@ class PdfService {
         return chartData[originalIndex.clamp(0, chartData.length - 1)];
       });
     }
-    
+
     return pw.Container(
       height: chartHeight + padding * 2,
       width: chartWidth,
@@ -469,7 +494,7 @@ class PdfService {
               ),
             ),
           ),
-          
+
           // Grid lines
           pw.Positioned(
             left: 30,
@@ -496,7 +521,7 @@ class PdfService {
               ),
             ),
           ),
-          
+
           // Bars
           pw.Positioned(
             left: 30,
@@ -509,11 +534,12 @@ class PdfService {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                 children: List.generate(displayData.length, (index) {
                   final data = displayData[index];
-                  final ripenessPercentage = data['ripenessPercentage'] as double;
+                  final ripenessPercentage =
+                      data['ripenessPercentage'] as double;
                   final ripenessStatus = data['ripenessStatus'] as String;
-                  
+
                   final barHeight = (ripenessPercentage / 100) * chartHeight;
-                  
+
                   return pw.Column(
                     mainAxisAlignment: pw.MainAxisAlignment.end,
                     children: [
@@ -522,7 +548,8 @@ class PdfService {
                         width: barWidth,
                         decoration: pw.BoxDecoration(
                           color: _getPdfColorForRipenessStatus(ripenessStatus),
-                          borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
+                          borderRadius:
+                              const pw.BorderRadius.all(pw.Radius.circular(4)),
                         ),
                       ),
                     ],
@@ -531,7 +558,7 @@ class PdfService {
               ),
             ),
           ),
-          
+
           // X-axis labels (Day numbers)
           pw.Positioned(
             left: 30,
@@ -543,7 +570,7 @@ class PdfService {
                 children: List.generate(displayData.length, (index) {
                   final data = displayData[index];
                   final day = data['day'] as int;
-                  
+
                   // Only show every 5th day label to avoid overcrowding
                   if (day % 5 == 0 || day == 1) {
                     return pw.Container(
@@ -561,18 +588,18 @@ class PdfService {
               ),
             ),
           ),
-          
         ],
       ),
     );
   }
-  
+
   // Helper method to build the ripeness legend in the PDF
   pw.Widget _buildRipenessLegend(pw.Font font, pw.Font fontBold) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text('Ripeness Status Legend', style: pw.TextStyle(font: fontBold, fontSize: 16)),
+        pw.Text('Ripeness Status Legend',
+            style: pw.TextStyle(font: fontBold, fontSize: 16)),
         pw.SizedBox(height: 10),
         pw.Row(
           mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
@@ -585,44 +612,93 @@ class PdfService {
       ],
     );
   }
-  
-  
+
   // Helper method to build a ripeness data table in the PDF
-  pw.Widget _buildRipenessDataTable(List<MapEntry<String, List<Map<String, dynamic>>>> cropData, pw.Font font, pw.Font fontBold) {
+  pw.Widget _buildRipenessDataTable(
+      List<MapEntry<String, List<Map<String, dynamic>>>> cropData,
+      pw.Font font,
+      pw.Font fontBold) {
     if (cropData.isEmpty) return pw.SizedBox();
-    
+
     // Get the first instance for summary data
     final firstInstance = cropData.first.value.first;
+    debugPrint('First instance data: $firstInstance');
     final ripenessPercentage = firstInstance['ripenessPercentage'] as double;
     final daysUntilHarvest = firstInstance['daysUntilHarvest'] as int;
-    final harvestDate = firstInstance['harvestDate'];
-    
-    // Calculate scan date (harvest date minus days until harvest)
+
+    // Safely handle createdAt and harvestDate which may be null, DateTime,
+    // Firestore Timestamp (has toDate()), int (ms since epoch), or String.
+    // Try multiple common keys including values inside a provided 'raw' map.
+    final dynamic raw = firstInstance['raw'];
+    dynamic scanRaw = firstInstance['timestamp'];
+    dynamic harvestRaw = firstInstance['harvestDate'];
+
+    if (scanRaw == null && raw is Map) {
+      scanRaw = raw['timestamp'] ??
+          raw['createdAt'] ??
+          raw['created_at'] ??
+          raw['scanDate'] ??
+          raw['scannedAt'] ??
+          raw['uploadedAt'];
+    }
+
+    if (harvestRaw == null && raw is Map) {
+      harvestRaw = raw['harvestDate'] ?? raw['harvest_date'] ?? raw['expectedHarvest'];
+    }
+
     DateTime? scanDateTime;
     DateTime? harvestDateTime;
-    
-    if (harvestDate is Timestamp) {
-      harvestDateTime = harvestDate.toDate();
-      scanDateTime = harvestDateTime.subtract(Duration(days: daysUntilHarvest));
-    } else if (harvestDate is DateTime) {
-      harvestDateTime = harvestDate;
-      scanDateTime = harvestDateTime.subtract(Duration(days: daysUntilHarvest));
+    debugPrint('scanRaw: $scanRaw, harvestRaw: $harvestRaw');
+    // Try to normalize scanRaw to DateTime
+    if (scanRaw is DateTime) {
+      scanDateTime = scanRaw;
+    } else if (scanRaw is int) {
+      // treat as milliseconds since epoch
+      scanDateTime = DateTime.fromMillisecondsSinceEpoch(scanRaw);
+    } else if (scanRaw is String) {
+      scanDateTime = DateTime.tryParse(scanRaw);
+    } else if (scanRaw != null) {
+      // Try to handle Firestore Timestamp by calling toDate() if available
+      try {
+        final maybeDate = (scanRaw as dynamic).toDate();
+        if (maybeDate is DateTime) scanDateTime = maybeDate;
+      } catch (_) {
+        // ignore
+      }
     }
-    
+
+    // Try to normalize harvestRaw to DateTime
+    if (harvestRaw is DateTime) {
+      harvestDateTime = harvestRaw;
+    } else if (harvestRaw is int) {
+      harvestDateTime = DateTime.fromMillisecondsSinceEpoch(harvestRaw);
+    } else if (harvestRaw is String) {
+      harvestDateTime = DateTime.tryParse(harvestRaw);
+    } else if (harvestRaw != null) {
+      try {
+        final maybeDate = (harvestRaw as dynamic).toDate();
+        if (maybeDate is DateTime) harvestDateTime = maybeDate;
+      } catch (_) {
+        // ignore
+      }
+    }
+
     String scanDateStr = 'N/A';
     String harvestDateStr = 'N/A';
-    
+
     if (scanDateTime != null) {
-      scanDateStr = '${scanDateTime.month}/${scanDateTime.day}/${scanDateTime.year}';
+      scanDateStr = DateFormat('MM/dd/yyyy').format(scanDateTime);
     }
+
     if (harvestDateTime != null) {
-      harvestDateStr = '${harvestDateTime.month}/${harvestDateTime.day}/${harvestDateTime.year}';
+      harvestDateStr = DateFormat('MM/dd/yyyy').format(harvestDateTime);
     }
-    
+
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
-        pw.Text('Summary Information', style: pw.TextStyle(font: fontBold, fontSize: 16)),
+        pw.Text('Summary Information',
+            style: pw.TextStyle(font: fontBold, fontSize: 16)),
         pw.SizedBox(height: 10),
         pw.Table(
           border: pw.TableBorder.all(color: PdfColors.grey300),
@@ -632,7 +708,8 @@ class PdfService {
               children: [
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text('Property', style: pw.TextStyle(font: fontBold)),
+                  child:
+                      pw.Text('Property', style: pw.TextStyle(font: fontBold)),
                 ),
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(8),
@@ -644,11 +721,13 @@ class PdfService {
               children: [
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text('Current Ripeness', style: pw.TextStyle(font: font)),
+                  child: pw.Text('Current Ripeness',
+                      style: pw.TextStyle(font: font)),
                 ),
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text('${ripenessPercentage.toStringAsFixed(1)}%', style: pw.TextStyle(font: font)),
+                  child: pw.Text('${ripenessPercentage.toStringAsFixed(1)}%',
+                      style: pw.TextStyle(font: font)),
                 ),
               ],
             ),
@@ -656,11 +735,13 @@ class PdfService {
               children: [
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text('Days Until Harvest', style: pw.TextStyle(font: font)),
+                  child: pw.Text('Days Until Harvest',
+                      style: pw.TextStyle(font: font)),
                 ),
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text('$daysUntilHarvest days', style: pw.TextStyle(font: font)),
+                  child: pw.Text('$daysUntilHarvest days',
+                      style: pw.TextStyle(font: font)),
                 ),
               ],
             ),
@@ -680,11 +761,13 @@ class PdfService {
               children: [
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text('Harvest Date', style: pw.TextStyle(font: font)),
+                  child:
+                      pw.Text('Harvest Date', style: pw.TextStyle(font: font)),
                 ),
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(harvestDateStr, style: pw.TextStyle(font: font)),
+                  child:
+                      pw.Text(harvestDateStr, style: pw.TextStyle(font: font)),
                 ),
               ],
             ),
@@ -696,7 +779,10 @@ class PdfService {
                 ),
                 pw.Padding(
                   padding: const pw.EdgeInsets.all(8),
-                  child: pw.Text(_getRipenessStatusText(ripenessPercentage, daysUntilHarvest), style: pw.TextStyle(font: font)),
+                  child: pw.Text(
+                      _getRipenessStatusText(
+                          ripenessPercentage, daysUntilHarvest),
+                      style: pw.TextStyle(font: font)),
                 ),
               ],
             ),
@@ -705,16 +791,17 @@ class PdfService {
       ],
     );
   }
-  
+
   // Helper method to get color for ripeness percentage
   PdfColor _getPdfColorForRipeness(double ripenessPercentage) {
     if (ripenessPercentage >= 100) return PdfColors.orange; // Ready to Harvest
     if (ripenessPercentage >= 70) return PdfColors.amber; // Almost Ready
     return PdfColors.green900; // Not Yet Ready
   }
-  
+
   // Helper method to get ripeness status text
-  String _getRipenessStatusText(double ripenessPercentage, int daysUntilHarvest) {
+  String _getRipenessStatusText(
+      double ripenessPercentage, int daysUntilHarvest) {
     if (ripenessPercentage >= 100 || daysUntilHarvest <= 0) {
       return 'Ready to Harvest';
     } else if (ripenessPercentage >= 70 || daysUntilHarvest <= 3) {
@@ -725,7 +812,8 @@ class PdfService {
   }
 
   // Helper method to calculate ripeness for a specific day (same logic as chart page)
-  double _calculateRipenessForDay(double currentRipeness, int day, int totalDays) {
+  double _calculateRipenessForDay(
+      double currentRipeness, int day, int totalDays) {
     // Calculate how much ripeness should increase per day
     // Start from current ripeness and reach 100% by harvest day
     final remainingRipeness = 100.0 - currentRipeness;

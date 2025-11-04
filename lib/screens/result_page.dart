@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fruitveggie/services/sms_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'dart:async'; // Add import for TimeoutException
 import 'dart:math' show pi, sin; // Add import for pi and sin functions
 import 'dart:convert'; // For base64Encode
