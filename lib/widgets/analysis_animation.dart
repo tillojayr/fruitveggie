@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'dart:math' show sin, pi, Random, cos;
 
 /// A modern analysis animation that shows a futuristic scanning effect over an image

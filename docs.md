@@ -44,9 +44,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -731,9 +731,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -1428,9 +1428,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -2152,9 +2152,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -2910,9 +2910,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -3668,9 +3668,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -4430,9 +4430,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -5213,9 +5213,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -6022,9 +6022,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -6828,9 +6828,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -7641,9 +7641,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -8518,9 +8518,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -9361,9 +9361,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -10174,9 +10174,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -10989,9 +10989,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -11804,9 +11804,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -12619,9 +12619,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -13434,9 +13434,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -14294,9 +14294,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -15110,9 +15110,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -16219,9 +16219,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -17047,7 +17047,7 @@ Now I need to update the PDF service to add the new method and include the logos
 
 
 ```dart
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -17062,7 +17062,7 @@ Let me add the new PDF generation method to the PDF service:
 
 
 ```dart
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -17465,7 +17465,7 @@ Now I need to add the helper methods for the new ripeness chart. Let me add them
 
 
 ```dart
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -18053,7 +18053,7 @@ I see there's a duplicate method declaration error in the PDF service. Let me fi
 
 
 ```dart
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -18676,7 +18676,7 @@ I understand you want the PDF chart to look exactly like the chart in the chart 
 
 
 ```dart
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -19383,7 +19383,7 @@ I'll fix the PDF chart to remove the axis titles and correct the Y-axis values t
 
 
 ```dart
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -20044,7 +20044,7 @@ Now I need to update the grid lines to match the new Y-axis values (6 lines inst
 
 
 ```dart
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -20705,7 +20705,7 @@ Now I need to remove the axis titles as requested:
 
 
 ```dart
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
@@ -21449,9 +21449,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -22286,9 +22286,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -23136,9 +23136,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -23986,9 +23986,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -24836,9 +24836,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {

@@ -11,7 +11,7 @@ import 'services/notification_service.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'package:flutter/foundation.dart';
 import 'package:workmanager/workmanager.dart';
 import 'services/sms_service.dart';
@@ -326,6 +326,11 @@ Future<void> _checkHarvestReminders() async {
 }
 
 void main() async {
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrintStack(label: 'STACK TRACE', stackTrace: details.stack);
+  };
+
   // Ensure Flutter bindings are initialized
   WidgetsFlutterBinding.ensureInitialized();
 

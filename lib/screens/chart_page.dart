@@ -4,9 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/services.dart';
 import 'dart:async';
-import 'dart:io';
 import '../services/pdf_service.dart';
-import 'dart:io';
+import 'package:universal_io/io.dart';
 import '../services/pdf_service.dart';
 
 class ChartPage extends StatefulWidget {
@@ -61,26 +60,26 @@ class _ChartPageState extends State<ChartPage> {
         final QuerySnapshot result = await FirebaseFirestore.instance
             .collection('users')
             .doc(userId)
-            .collection('reminders')
-            .where('isDismissed', isEqualTo: false)
+            .collection('scans')
+            .where('daysUntilHarvest', isNotEqualTo: 0)
             .get();
 
         if (result.docs.isNotEmpty) {
           Map<String, List<Map<String, dynamic>>> cropDataMap = {};
-          Set<String> cropNames = {};
 
           debugPrint('Data fetched: ${result.docs.length} reminders');
           for (var doc in result.docs) {
             final scanData = doc.data() as Map<String, dynamic>;
 
             debugPrint('All data for scan ${doc.id}: $scanData');
-            String produceName = scanData['produceType'] ?? 'Unknown';
-            int daysUntilHarvest = _getDaysUntilHarvest(scanData);
+            String produceName = scanData['name'] ?? 'Unknown';
+            int daysUntilHarvest = scanData['daysUntilHarvest'] ?? 0;
             double ripenessPercentage = _getRipenessPercentage(scanData);
 
-            // Create unique key for each crop instance
+            // Create unique key for each crop instance. Start duplicate counter at 2
+            // so duplicates become "Mango", "Mango#2", "Mango#3" ...
             String key = produceName;
-            int counter = 1;
+            int counter = 2;
             while (cropDataMap.containsKey(key)) {
               key = '$produceName#$counter';
               counter++;
@@ -89,23 +88,32 @@ class _ChartPageState extends State<ChartPage> {
             debugPrint(
                 'Processing scan: $key, Days until harvest: $daysUntilHarvest, Ripeness: $ripenessPercentage%');
 
+            // Normalize possible timestamp fields so PDF service can use them
+            final dynamic timestamp = scanData['timestamp'] ??
+                scanData['createdAt'] ??
+                scanData['scanDate'] ??
+                scanData['scannedAt'] ??
+                scanData['created_at'] ??
+                scanData['uploadedAt'];
+
             cropDataMap[key] = [
               {
                 'produceName': produceName,
                 'daysUntilHarvest': daysUntilHarvest,
                 'ripenessPercentage': ripenessPercentage,
                 'harvestDate': scanData['harvestDate'],
-                'scanId': scanData['scanId'],
+                'timestamp': timestamp,
+                // Keep raw scan data in case other PDF fields are needed
+                'raw': scanData,
               }
             ];
-
-            cropNames.add(produceName);
           }
 
           debugPrint('Crop data map: $cropDataMap');
           setState(() {
             _cropData = cropDataMap;
-            _availableCrops = cropNames.toList()..sort();
+            // Use the map keys so each scanned instance is selectable
+            _availableCrops = cropDataMap.keys.toList();
             _selectedCrop =
                 _availableCrops.isNotEmpty ? _availableCrops.first : null;
             _isLoading = false;
@@ -133,8 +141,8 @@ class _ChartPageState extends State<ChartPage> {
       return _capitalizeFirstLetter(scanData['name'].toString());
     } else if (scanData.containsKey('produceName')) {
       return _capitalizeFirstLetter(scanData['produceName'].toString());
-    } else if (scanData.containsKey('produceType')) {
-      return _capitalizeFirstLetter(scanData['produceType'].toString());
+    } else if (scanData.containsKey('name')) {
+      return _capitalizeFirstLetter(scanData['name'].toString());
     } else if (scanData.containsKey('Fruit or Vegetable Type')) {
       return _capitalizeFirstLetter(
           scanData['Fruit or Vegetable Type'].toString());
@@ -399,9 +407,9 @@ class _ChartPageState extends State<ChartPage> {
     });
 
     try {
-      // Get data for the selected crop only
+      // Get data for the selected crop instance (by unique key)
       final selectedCropData = _cropData.entries
-          .where((entry) => entry.value.first['produceName'] == _selectedCrop)
+          .where((entry) => entry.key == _selectedCrop)
           .toList();
 
       final File? pdfFile = await _pdfService.generateRipenessChartPdf(
@@ -581,10 +589,9 @@ class _ChartPageState extends State<ChartPage> {
   Widget _buildRipenessChart() {
     if (_selectedCrop == null) return const SizedBox.shrink();
 
-    // Get all data for the selected crop
-    final cropInstances = _cropData.entries
-        .where((entry) => entry.value.first['produceName'] == _selectedCrop)
-        .toList();
+    // Get all data for the selected crop instance (by unique key)
+    final cropInstances =
+        _cropData.entries.where((entry) => entry.key == _selectedCrop).toList();
 
     if (cropInstances.isEmpty) return const SizedBox.shrink();
 
@@ -816,22 +823,21 @@ class _ChartPageState extends State<ChartPage> {
 
   Widget _buildChartDateInfo() {
     if (_selectedCrop == null) return const SizedBox.shrink();
-    
-    // Get all data for the selected crop
-    final cropInstances = _cropData.entries
-        .where((entry) => entry.value.first['produceName'] == _selectedCrop)
-        .toList();
-    
+
+    // Get all data for the selected crop instance (by unique key)
+    final cropInstances =
+        _cropData.entries.where((entry) => entry.key == _selectedCrop).toList();
+
     if (cropInstances.isEmpty) return const SizedBox.shrink();
-    
+
     // Get the first instance for date information
     final firstInstance = cropInstances.first.value.first;
     final harvestDate = firstInstance['harvestDate'];
-    
+
     // Calculate scan date (harvest date minus days until harvest)
     DateTime? scanDateTime;
     DateTime? harvestDateTime;
-    
+
     if (harvestDate is Timestamp) {
       harvestDateTime = harvestDate.toDate();
       final daysUntilHarvest = firstInstance['daysUntilHarvest'] as int;
@@ -841,17 +847,19 @@ class _ChartPageState extends State<ChartPage> {
       final daysUntilHarvest = firstInstance['daysUntilHarvest'] as int;
       scanDateTime = harvestDateTime.subtract(Duration(days: daysUntilHarvest));
     }
-    
+
     String scanDateStr = 'N/A';
     String harvestDateStr = 'N/A';
-    
+
     if (scanDateTime != null) {
-      scanDateStr = '${scanDateTime.month}/${scanDateTime.day}/${scanDateTime.year}';
+      scanDateStr =
+          '${scanDateTime.month}/${scanDateTime.day}/${scanDateTime.year}';
     }
     if (harvestDateTime != null) {
-      harvestDateStr = '${harvestDateTime.month}/${harvestDateTime.day}/${harvestDateTime.year}';
+      harvestDateStr =
+          '${harvestDateTime.month}/${harvestDateTime.day}/${harvestDateTime.year}';
     }
-    
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
