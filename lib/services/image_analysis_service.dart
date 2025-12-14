@@ -2,11 +2,14 @@ import 'package:universal_io/io.dart';
 import 'dart:convert';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ImageAnalysisService {
-  static const String _apiKey = 'AIzaSyC07lXkD3GWhW_tLOZgekWxrzeqgbN39c4';
-  late final GenerativeModel _model;
+  String? _apiKey;
+  GenerativeModel? _model;
   bool _isInitialized = false;
+  bool _isInitializing = false;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   // Predefined prompt for Google Gemini AI
   static const String _analysisPrompt = '''
@@ -27,34 +30,89 @@ Return ONLY a valid JSON object (no code fences, no extra text) with these exact
 
 Rules:
 - Never include explanations, text outside JSON, or commentary.
-- Ripeness 0 means unripe, 100 means fully ripe.
+- Identify if it is ready to harvest or not based on ripeness.
+- Set "okay_to_harvest" to true if ripeness is 80 or above, else false.
 - If spoiled/overripe, set "okay_to_harvest": false and "days_to_harvest": 0.
 - Ensure the JSON is syntactically valid and complete (all fields present).
  - If the image does NOT contain any fruit or vegetable (e.g., people, animals, objects, landscapes, processed food), set "not_produce": true and fill other fields conservatively (ripeness: 0, okay_to_harvest: false, days_to_harvest: 0, image_description: brief reason). In this case still return a valid JSON.
 ''';
 
-  ImageAnalysisService() {
-    _initializeModel();
+  ImageAnalysisService();
+
+  /// Fetches the API key from Firestore
+  Future<String> _fetchApiKey() async {
+    try {
+      debugPrint('ImageAnalysisService: Fetching API key from Firestore...');
+      
+      // First, try to get document by ID 'geminiApiKey' (preferred method)
+      final docById = await _firestore.collection('config').doc('geminiApiKey').get();
+      if (docById.exists) {
+        final data = docById.data();
+        // Check for 'apiKey' field (if document ID is geminiApiKey)
+        final apiKey = data?['apiKey'] as String?;
+        if (apiKey != null && apiKey.isNotEmpty) {
+          debugPrint('ImageAnalysisService: API key fetched successfully from document ID');
+          return apiKey;
+        }
+        // Check for 'geminiApiKey' field (alternative structure)
+        final apiKeyAlt = data?['geminiApiKey'] as String?;
+        if (apiKeyAlt != null && apiKeyAlt.isNotEmpty) {
+          debugPrint('ImageAnalysisService: API key fetched successfully from document ID');
+          return apiKeyAlt;
+        }
+      }
+      
+      // Fallback: Query all documents in config collection and find one with geminiApiKey field
+      final querySnapshot = await _firestore.collection('config').limit(10).get();
+      
+      for (var doc in querySnapshot.docs) {
+        final data = doc.data();
+        final apiKey = data['geminiApiKey'] as String?;
+        if (apiKey != null && apiKey.isNotEmpty) {
+          debugPrint('ImageAnalysisService: API key fetched successfully from config collection');
+          return apiKey;
+        }
+      }
+      
+      throw Exception('API key not found in Firestore. Please add a document in config collection with a field named "geminiApiKey" containing your API key, or create a document with ID "geminiApiKey" and field "apiKey".');
+    } catch (e) {
+      debugPrint('ImageAnalysisService: Error fetching API key: $e');
+      rethrow;
+    }
   }
 
-  void _initializeModel() {
-    _model = GenerativeModel(
-      model: 'gemini-2.0-flash',
-      apiKey: _apiKey,
-      generationConfig: GenerationConfig(
-        temperature: 0.1, // Low temperature for consistent JSON output
-        maxOutputTokens: 500,
-        topP: 0.8,
-        topK: 20,
-      ),
-      safetySettings: [
-        SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.none),
-        SafetySetting(HarmCategory.harassment, HarmBlockThreshold.none),
-        SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.none),
-        SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.none),
-      ],
-    );
-    _isInitialized = true;
+  /// Initializes the model with the API key from Firestore
+  Future<void> _initializeModel() async {
+    if (_isInitialized || _isInitializing) {
+      return;
+    }
+    
+    _isInitializing = true;
+    
+    try {
+      // Fetch API key from Firestore if not already cached
+      if (_apiKey == null) {
+        _apiKey = await _fetchApiKey();
+      }
+      
+      _model = GenerativeModel(
+        model: 'gemini-flash-latest',
+        apiKey: _apiKey!,
+        safetySettings: [
+          SafetySetting(HarmCategory.dangerousContent, HarmBlockThreshold.none),
+          SafetySetting(HarmCategory.harassment, HarmBlockThreshold.none),
+          SafetySetting(HarmCategory.hateSpeech, HarmBlockThreshold.none),
+          SafetySetting(HarmCategory.sexuallyExplicit, HarmBlockThreshold.none),
+        ],
+      );
+      _isInitialized = true;
+      debugPrint('ImageAnalysisService: Model initialized successfully');
+    } catch (e) {
+      debugPrint('ImageAnalysisService: Error initializing model: $e');
+      rethrow;
+    } finally {
+      _isInitializing = false;
+    }
   }
 
   /// Analyzes an image file and returns structured analysis results
@@ -70,7 +128,11 @@ Rules:
   /// }
   Future<Map<String, dynamic>> analyze(File imageFile) async {
     if (!_isInitialized) {
-      _initializeModel();
+      await _initializeModel();
+    }
+    
+    if (_model == null) {
+      throw Exception('Model not initialized. Failed to fetch API key from Firestore.');
     }
 
     try {
@@ -88,7 +150,7 @@ Rules:
       ];
 
       // Generate content using Gemini
-      final response = await _model.generateContent(content);
+      final response = await _model!.generateContent(content);
 
       if (response.text == null || response.text!.isEmpty) {
         throw Exception('No response received from Gemini AI');
@@ -110,7 +172,8 @@ Rules:
         "ripeness": 50,
         "okay_to_harvest": false,
         "days_to_harvest": 7,
-        "image_description": "Unable to analyze image due to error: $e"
+        "image_description": "Unable to analyze image due to error: $e",
+        "type": "Unknown",
       };
     }
   }
@@ -210,5 +273,8 @@ Rules:
   void dispose() {
     // No specific disposal needed for GenerativeModel
     _isInitialized = false;
+    _isInitializing = false;
+    _model = null;
+    _apiKey = null;
   }
 }

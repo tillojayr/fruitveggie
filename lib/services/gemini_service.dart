@@ -5,7 +5,7 @@ import 'package:image/image.dart' as img;
 import 'package:flutter/foundation.dart';
 
 class GeminiService {
-  static const String apiKey = 'AIzaSyC07lXkD3GWhW_tLOZgekWxrzeqgbN39c4';
+  static const String apiKey = 'AIzaSyDkTSxFXy4YN5C08iSIEhfQJ_C04kzbqww';
   final GenerativeModel _model;
   final GenerativeModel _backupModel;
   final GenerativeModel _textModel;
@@ -20,7 +20,7 @@ class GeminiService {
 
   GeminiService()
       : _model = GenerativeModel(
-          model: 'gemini-2.0-flash',
+          model: 'gemini-flash-latest',
           apiKey: apiKey,
           generationConfig: GenerationConfig(
             temperature:

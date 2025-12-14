@@ -221,6 +221,15 @@ class _ResultPageState extends State<ResultPage> with TickerProviderStateMixin {
         });
 
         debugPrint('Image analysis completed with results: $results');
+
+        if (results['type'] == "Unknown") {
+          setState(() {
+            _hasError = true;
+            _isAnalyzing = false;
+            _errorMessage = 'Error accessing image: ';
+          });
+          return;
+        }
         // Convert the new service response to the expected format
         results = _convertImageAnalysisResponse(results);
 
